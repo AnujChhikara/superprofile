@@ -65,10 +65,17 @@ export async function getMessages(
   visitorToken: string,
   after?: number
 ): Promise<WidgetMessage[]> {
-  const q = new URLSearchParams({ workspaceKey, visitorToken });
+  const q = new URLSearchParams();
   if (after !== undefined) q.set("after", String(after));
+  // Credentials go in headers, not the URL, so the token isn't logged.
   const res = await fetch(
-    `/api/widget/conversations/${conversationId}/messages?${q}`
+    `/api/widget/conversations/${conversationId}/messages?${q}`,
+    {
+      headers: {
+        "X-Workspace-Key": workspaceKey,
+        "X-Visitor-Token": visitorToken,
+      },
+    }
   );
   if (!res.ok) return [];
   return res.json();

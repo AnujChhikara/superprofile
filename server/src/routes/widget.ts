@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import crypto from "crypto";
 import { db } from "../db/client.js";
-import { workspaces, contacts, conversations } from "../db/schema.js";
+import { workspaces, contacts } from "../db/schema.js";
 import { and, eq } from "drizzle-orm";
 import {
   findOrCreateContact,
@@ -16,6 +16,13 @@ import { emitMessageCreated, emitConversationUpdated } from "../events.js";
 import { isAgentOnline } from "../realtime/socket.js";
 
 export const widgetRouter = Router();
+
+// The visitorToken is a bearer-like credential; keep it out of the Referer
+// header when the frame links out (e.g. KB article links open in a new tab).
+widgetRouter.use((_req, res, next) => {
+  res.setHeader("Referrer-Policy", "no-referrer");
+  next();
+});
 
 // ---- rate limit: 60 req/min per IP + workspaceKey ----
 const hits = new Map<string, number[]>();
@@ -171,10 +178,14 @@ widgetRouter.post("/conversations/:id/messages", async (req, res) => {
   return void res.status(201).json(message);
 });
 
-// GET /api/widget/conversations/:id/messages?after=&workspaceKey=&visitorToken=
+// GET /api/widget/conversations/:id/messages?after=
+// Credentials come from headers (not the query string) so the visitorToken —
+// a bearer-like credential — never lands in access logs. workspaceKey is public.
 widgetRouter.get("/conversations/:id/messages", async (req, res) => {
-  const workspaceKey = String(req.query.workspaceKey ?? "");
-  const visitorToken = String(req.query.visitorToken ?? "");
+  const workspaceKey = String(
+    req.header("X-Workspace-Key") ?? req.query.workspaceKey ?? ""
+  );
+  const visitorToken = String(req.header("X-Visitor-Token") ?? "");
   const who = await resolveVisitor(workspaceKey, visitorToken);
   if (!who) return void res.status(404).json({ error: "unknown visitor" });
 
@@ -209,39 +220,12 @@ widgetRouter.post("/identify", async (req, res) => {
   );
   if (!who) return void res.status(404).json({ error: "unknown visitor" });
 
-  // If another contact already owns this email, repoint the visitor's
-  // conversations + messages onto it and drop the anonymous contact.
-  const existing = (
-    await db
-      .select()
-      .from(contacts)
-      .where(
-        and(
-          eq(contacts.workspaceId, who.wsId),
-          eq(contacts.email, parsed.data.email)
-        )
-      )
-  )[0];
-
-  if (existing && existing.id !== who.contactId) {
-    await db
-      .update(conversations)
-      .set({ contactId: existing.id })
-      .where(
-        and(
-          eq(conversations.workspaceId, who.wsId),
-          eq(conversations.contactId, who.contactId)
-        )
-      );
-    // Keep the visitorToken reachable on the merged contact.
-    await db
-      .update(contacts)
-      .set({ visitorToken: parsed.data.visitorToken })
-      .where(eq(contacts.id, existing.id));
-    await db.delete(contacts).where(eq(contacts.id, who.contactId));
-    return void res.json({ ok: true, contactId: existing.id });
-  }
-
+  // Only ever label the visitor's OWN contact. We deliberately do NOT merge
+  // into a pre-existing contact that already owns this email: the email is
+  // unverified (anyone can type any address), so adopting another contact's
+  // identity here would let an anonymous visitor read that contact's history.
+  // Contact email is a non-unique index, so a duplicate is acceptable; real
+  // identity linking would require verification (e.g. emailed code / HMAC).
   await db
     .update(contacts)
     .set({ email: parsed.data.email, name: parsed.data.name ?? undefined })
