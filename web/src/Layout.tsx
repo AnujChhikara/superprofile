@@ -48,6 +48,10 @@ export default function Layout() {
             <span style={styles.navIcon}>⚙️</span>
             Settings
           </NavLink>
+          <NavLink to="/settings/domains" style={navStyle}>
+            <span style={styles.navIcon}>🌐</span>
+            Domains
+          </NavLink>
         </nav>
 
         {/* User info at bottom */}

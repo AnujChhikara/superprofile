@@ -16,6 +16,7 @@ import { webhooksRouter } from "./routes/webhooks.js";
 import { kbRouter } from "./routes/kb.js";
 import { kbPublicApiRouter, kbPublicRouter } from "./routes/kbPublic.js";
 import { summariesRouter } from "./routes/summaries.js";
+import { domainsRouter, customDomainMiddleware } from "./routes/domains.js";
 import { handleInbound } from "./email/inbound.js";
 import { db, newId } from "./db/client.js";
 import { contacts, conversations, messages, workspaces } from "./db/schema.js";
@@ -100,7 +101,11 @@ app.use((req, res, next) => {
   if (kbHostName !== apiHostName && req.hostname === kbHostName) {
     return kbPublicRouter(req, res, next);
   }
-  return next(); // customDomainRouter added in Task 11
+  // Active tenant custom domains serve their KB at root paths.
+  if (req.hostname !== apiHostName && req.hostname !== kbHostName) {
+    return customDomainMiddleware(req, res, next);
+  }
+  return next();
 });
 
 // Loader script + built frame assets.
@@ -145,6 +150,9 @@ app.use("/api/kb", kbRouter);
 
 // AI summaries (mounted on the conversations base; distinct sub-paths).
 app.use("/api/conversations", summariesRouter);
+
+// Custom domains (admin).
+app.use("/api/domains", domainsRouter);
 
 // ---- Realtime fan-out: turn in-process events into socket broadcasts ----
 // Registered at module load; the emit helpers no-op until initSocket runs

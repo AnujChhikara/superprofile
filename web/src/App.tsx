@@ -6,6 +6,7 @@ import Onboarding from "./pages/Onboarding.js";
 import Inbox from "./pages/Inbox.js";
 import KnowledgeBase from "./pages/KnowledgeBase.js";
 import TeamSettings from "./pages/Settings/Team.js";
+import Domains from "./pages/Settings/Domains.js";
 import InviteAccept from "./pages/InviteAccept.js";
 
 function AppRoutes() {
@@ -57,6 +58,7 @@ function AppRoutes() {
           <Route path="/inbox" element={<Inbox />} />
           <Route path="/knowledge" element={<KnowledgeBase />} />
           <Route path="/settings/team" element={<TeamSettings />} />
+          <Route path="/settings/domains" element={<Domains />} />
           <Route path="*" element={<Navigate to="/inbox" replace />} />
         </Route>
       )}
