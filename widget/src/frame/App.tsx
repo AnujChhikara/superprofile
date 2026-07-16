@@ -5,8 +5,10 @@ import {
   startConversation,
   sendMessage,
   getMessages,
+  searchKb,
   type WidgetConversation,
   type WidgetMessage,
+  type KbSuggestion,
 } from "./api";
 
 const BRAND = "#4f46e5";
@@ -295,13 +297,28 @@ function Thread({
 }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [suggestions, setSuggestions] = useState<KbSuggestion[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const kbTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTyping = useRef(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, agentTyping]);
+
+  // Debounced KB suggestions: ≥4 chars, 600ms after last keystroke, top 3.
+  function scheduleKbSearch(q: string) {
+    if (kbTimer.current) clearTimeout(kbTimer.current);
+    if (q.trim().length < 4) {
+      setSuggestions([]);
+      return;
+    }
+    kbTimer.current = setTimeout(async () => {
+      const hits = await searchKb(workspaceKey, q.trim());
+      setSuggestions(hits.slice(0, 3));
+    }, 600);
+  }
 
   function emitTyping(v: boolean) {
     if (!activeId || !socket) return;
@@ -310,7 +327,9 @@ function Thread({
   }
 
   function onInput(e: Event) {
-    setDraft((e.target as HTMLTextAreaElement).value);
+    const value = (e.target as HTMLTextAreaElement).value;
+    setDraft(value);
+    scheduleKbSearch(value);
     if (activeId) {
       if (!isTyping.current) emitTyping(true);
       if (typingTimer.current) clearTimeout(typingTimer.current);
@@ -337,6 +356,7 @@ function Thread({
         onSent(msg);
       }
       setDraft("");
+      setSuggestions([]);
     } catch {
       // keep the draft so the visitor can retry
     } finally {
@@ -369,6 +389,22 @@ function Thread({
         )}
         <div ref={bottomRef} />
       </div>
+      {suggestions.length > 0 && (
+        <div style={styles.suggestWrap}>
+          <div style={styles.suggestLabel}>Suggested articles</div>
+          {suggestions.map((s) => (
+            <a
+              key={s.id}
+              href={s.url}
+              target="_blank"
+              rel="noreferrer"
+              style={styles.suggestCard}
+            >
+              📄 {s.title}
+            </a>
+          ))}
+        </div>
+      )}
       <div style={styles.composer}>
         <textarea
           style={styles.textarea}
@@ -508,6 +544,29 @@ const styles: Record<string, any> = {
   bubbleVisitor: { background: BRAND, color: "#fff", borderBottomRightRadius: "4px" },
   bubbleAgent: { background: "#f3f4f6", color: "#111827", borderBottomLeftRadius: "4px" },
   systemMsg: { background: "#f9fafb", color: "#9ca3af", fontSize: "12px", padding: "3px 10px", borderRadius: "10px" },
+  suggestWrap: {
+    padding: "8px 12px",
+    borderTop: "1px solid #eef2f7",
+    background: "#fafafe",
+  },
+  suggestLabel: {
+    fontSize: "11px",
+    color: "#94a3b8",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    marginBottom: "6px",
+  },
+  suggestCard: {
+    display: "block",
+    fontSize: "13px",
+    color: "#4f46e5",
+    textDecoration: "none",
+    padding: "6px 8px",
+    borderRadius: "8px",
+    background: "#fff",
+    border: "1px solid #e5e7eb",
+    marginBottom: "4px",
+  },
   composer: {
     display: "flex",
     gap: "8px",

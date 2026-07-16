@@ -13,6 +13,8 @@ import { teamRouter, invitesRouter } from "./routes/team.js";
 import { conversationsRouter } from "./routes/conversations.js";
 import { widgetRouter } from "./routes/widget.js";
 import { webhooksRouter } from "./routes/webhooks.js";
+import { kbRouter } from "./routes/kb.js";
+import { kbPublicApiRouter, kbPublicRouter } from "./routes/kbPublic.js";
 import { handleInbound } from "./email/inbound.js";
 import { db, newId } from "./db/client.js";
 import { contacts, conversations, messages, workspaces } from "./db/schema.js";
@@ -86,6 +88,20 @@ app.use("/api/widget", cors({ origin: true, credentials: false }), widgetRouter)
 // SendGrid Inbound Parse webhook (not under /api → skips the CSRF origin check).
 app.use("/webhooks", webhooksRouter);
 
+// Public KB search API (read-only; widget + public site). Permissive CORS.
+app.use("/api/public/kb", cors({ origin: true }), kbPublicApiRouter);
+
+// Host-based routing: the KB host serves the public SSR help center. Guarded so
+// it never hijacks the API host (locally both may be "localhost").
+const kbHostName = env.KB_HOST.split(":")[0];
+const apiHostName = new URL(env.API_ORIGIN).hostname;
+app.use((req, res, next) => {
+  if (kbHostName !== apiHostName && req.hostname === kbHostName) {
+    return kbPublicRouter(req, res, next);
+  }
+  return next(); // customDomainRouter added in Task 11
+});
+
 // Loader script + built frame assets.
 app.use(express.static(publicDir));
 // SPA entry for the widget iframe (any ?ws=... query).
@@ -122,6 +138,9 @@ app.use("/api/invites", invitesRouter);
 
 // Conversations routes
 app.use("/api/conversations", conversationsRouter);
+
+// Knowledge base (authed CRUD).
+app.use("/api/kb", kbRouter);
 
 // ---- Realtime fan-out: turn in-process events into socket broadcasts ----
 // Registered at module load; the emit helpers no-op until initSocket runs

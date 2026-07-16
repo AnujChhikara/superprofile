@@ -81,6 +81,24 @@ export async function getMessages(
   return res.json();
 }
 
+export interface KbSuggestion {
+  id: string;
+  title: string;
+  slug: string;
+  url: string;
+}
+
+export async function searchKb(
+  workspaceKey: string,
+  q: string
+): Promise<KbSuggestion[]> {
+  const res = await fetch(
+    `/api/public/kb/${encodeURIComponent(workspaceKey)}/search?q=${encodeURIComponent(q)}`
+  );
+  if (!res.ok) return [];
+  return res.json();
+}
+
 export function identify(
   workspaceKey: string,
   visitorToken: string,
