@@ -12,6 +12,8 @@ import { workspacesRouter } from "./routes/workspaces.js";
 import { teamRouter, invitesRouter } from "./routes/team.js";
 import { conversationsRouter } from "./routes/conversations.js";
 import { widgetRouter } from "./routes/widget.js";
+import { webhooksRouter } from "./routes/webhooks.js";
+import { handleInbound } from "./email/inbound.js";
 import { db, newId } from "./db/client.js";
 import { contacts, conversations, messages, workspaces } from "./db/schema.js";
 import { eq, lt, and } from "drizzle-orm";
@@ -81,6 +83,9 @@ const publicDir = path.join(__dirname, "..", "public");
 
 app.use("/api/widget", cors({ origin: true, credentials: false }), widgetRouter);
 
+// SendGrid Inbound Parse webhook (not under /api → skips the CSRF origin check).
+app.use("/webhooks", webhooksRouter);
+
 // Loader script + built frame assets.
 app.use(express.static(publicDir));
 // SPA entry for the widget iframe (any ?ws=... query).
@@ -129,6 +134,27 @@ onMessageCreated(({ workspaceId, message }) => {
 onConversationUpdated(({ workspaceId, conversation }) => {
   emitToWorkspace(workspaceId, "conversation:updated", { conversation });
 });
+
+// Dev inbound-email simulator — DEMO_MODE only. Lets us exercise the email
+// threading path without a real SendGrid round-trip.
+if (env.DEMO_MODE) {
+  app.post("/api/dev/simulate-inbound", async (req, res) => {
+    try {
+      await handleInbound({
+        to: String(req.body.to ?? ""),
+        from: String(req.body.from ?? ""),
+        subject: req.body.subject,
+        text: req.body.text,
+        html: req.body.html,
+        headers: req.body.headers,
+      });
+      return void res.json({ ok: true });
+    } catch (err) {
+      console.error("[simulate-inbound]", err);
+      return void res.status(500).json({ error: "simulate failed" });
+    }
+  });
+}
 
 // Dev seed route — only mounted when DEMO_MODE is true
 if (env.DEMO_MODE) {

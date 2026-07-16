@@ -7,12 +7,14 @@ export interface EmailOptions {
   html?: string;
   headers?: Record<string, string>;
   from?: string;
+  fromName?: string;
 }
 
 const DEFAULT_FROM = "no-reply@parse.anujchhikara.com";
 
 export async function sendEmail(opts: EmailOptions): Promise<void> {
-  const { to, subject, text, html, headers, from = DEFAULT_FROM } = opts;
+  const { to, subject, text, html, headers, from = DEFAULT_FROM, fromName } =
+    opts;
 
   if (!env.SENDGRID_API_KEY) {
     // Dev mode: log instead of sending

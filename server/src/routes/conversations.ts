@@ -13,6 +13,7 @@ import {
   emitMessageCreated,
   emitConversationUpdated,
 } from "../events.js";
+import { sendReply } from "../email/outbound.js";
 
 export const conversationsRouter = Router();
 
@@ -115,6 +116,15 @@ conversationsRouter.post(
       const conv = await getConversation(wsId, id);
       emitMessageCreated({ workspaceId: wsId, conversation: conv, message: msg });
       emitConversationUpdated({ workspaceId: wsId, conversation: conv });
+
+      // For email conversations, deliver the reply as a threaded email.
+      // Fire-and-forget: the message is already saved + shown in the inbox;
+      // a delivery failure surfaces as a system message via sendReply.
+      if (conv.channel === "email") {
+        void sendReply({ workspaceId: wsId, conversation: conv, message: msg }).catch(
+          (err) => console.error("[conversations] email reply failed:", err)
+        );
+      }
 
       return void res.status(201).json(msg);
     } catch (err: unknown) {
