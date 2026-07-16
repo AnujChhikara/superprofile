@@ -14,6 +14,7 @@ import {
   emitConversationUpdated,
 } from "../events.js";
 import { sendReply } from "../email/outbound.js";
+import { maybeSummarize } from "../ai/summarize.js";
 
 export const conversationsRouter = Router();
 
@@ -54,6 +55,10 @@ conversationsRouter.get(
     const id = String(req.params.id);
     try {
       const conv = await getConversation(wsId, id);
+      // Fire-and-forget rolling summary refresh (no-op unless due).
+      void maybeSummarize(wsId, id).catch((err) =>
+        console.error("[summary] maybeSummarize failed:", err)
+      );
       return void res.json(conv);
     } catch (err: unknown) {
       if ((err as { status?: number }).status === 404) {

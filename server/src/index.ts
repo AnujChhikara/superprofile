@@ -15,6 +15,7 @@ import { widgetRouter } from "./routes/widget.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { kbRouter } from "./routes/kb.js";
 import { kbPublicApiRouter, kbPublicRouter } from "./routes/kbPublic.js";
+import { summariesRouter } from "./routes/summaries.js";
 import { handleInbound } from "./email/inbound.js";
 import { db, newId } from "./db/client.js";
 import { contacts, conversations, messages, workspaces } from "./db/schema.js";
@@ -141,6 +142,9 @@ app.use("/api/conversations", conversationsRouter);
 
 // Knowledge base (authed CRUD).
 app.use("/api/kb", kbRouter);
+
+// AI summaries (mounted on the conversations base; distinct sub-paths).
+app.use("/api/conversations", summariesRouter);
 
 // ---- Realtime fan-out: turn in-process events into socket broadcasts ----
 // Registered at module load; the emit helpers no-op until initSocket runs

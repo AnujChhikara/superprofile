@@ -68,6 +68,12 @@ function useInboxRealtime(workspaceId: string | null) {
       }));
     };
 
+    const onSummary = (p: { conversationId: string }) => {
+      queryClient.invalidateQueries({
+        queryKey: ["summary", p.conversationId],
+      });
+    };
+
     const onReconnect = () => {
       // Refetch to close any gap while disconnected (no dupes: refetch replaces).
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
@@ -78,6 +84,7 @@ function useInboxRealtime(workspaceId: string | null) {
     socket.on("conversation:updated", onConvUpdated);
     socket.on("typing", onTyping);
     socket.on("read", onRead);
+    socket.on("summary:updated", onSummary);
     socket.io.on("reconnect", onReconnect);
 
     return () => {
@@ -85,6 +92,7 @@ function useInboxRealtime(workspaceId: string | null) {
       socket.off("conversation:updated", onConvUpdated);
       socket.off("typing", onTyping);
       socket.off("read", onRead);
+      socket.off("summary:updated", onSummary);
       socket.io.off("reconnect", onReconnect);
     };
   }, [workspaceId, queryClient]);
@@ -505,6 +513,70 @@ interface DetailPaneProps {
   onUpdated: () => void;
 }
 
+interface SummaryResp {
+  summary: { body: string; messageCount: number; updatedAt: string } | null;
+  messageCount: number;
+  stale?: boolean;
+}
+
+function SummaryCard({ conversationId }: { conversationId: string }) {
+  const queryClient = useQueryClient();
+  const { data } = useQuery<SummaryResp>({
+    queryKey: ["summary", conversationId],
+    queryFn: () =>
+      api<SummaryResp>(`/api/conversations/${conversationId}/summary`),
+  });
+  const regenerate = useMutation({
+    mutationFn: () =>
+      api(`/api/conversations/${conversationId}/summary/regenerate`, {
+        method: "POST",
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["summary", conversationId] }),
+  });
+
+  return (
+    <div style={styles.section}>
+      <div style={styles.sectionLabel}>
+        AI Summary
+        {data?.summary && data.stale && (
+          <span style={styles.staleBadge}>may be out of date</span>
+        )}
+      </div>
+      {data?.summary ? (
+        <>
+          <div style={styles.summaryBody}>{data.summary.body}</div>
+          <div style={styles.summaryMeta}>
+            updated {formatTime(data.summary.updatedAt)}
+            <button
+              style={styles.regenBtn}
+              onClick={() => regenerate.mutate()}
+              disabled={regenerate.isPending}
+            >
+              {regenerate.isPending ? "…" : "Regenerate"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div style={{ fontSize: 12, color: "#9ca3af" }}>
+          {(data?.messageCount ?? 0) < 6
+            ? "Summary appears after a few messages."
+            : "No summary yet."}
+          {(data?.messageCount ?? 0) >= 6 && (
+            <button
+              style={styles.regenBtn}
+              onClick={() => regenerate.mutate()}
+              disabled={regenerate.isPending}
+            >
+              {regenerate.isPending ? "…" : "Generate"}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DetailPane({ conversationId, onUpdated }: DetailPaneProps) {
   const queryClient = useQueryClient();
   const [snoozeMenuOpen, setSnoozeMenuOpen] = useState(false);
@@ -577,6 +649,11 @@ function DetailPane({ conversationId, onUpdated }: DetailPaneProps) {
           )}
         </div>
       </div>
+
+      <div style={styles.divider} />
+
+      {/* AI summary */}
+      <SummaryCard conversationId={conversationId} />
 
       <div style={styles.divider} />
 
@@ -1160,6 +1237,44 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     marginBottom: 6,
     fontSize: 12,
+  },
+  staleBadge: {
+    marginLeft: 8,
+    fontSize: 9,
+    fontWeight: 600,
+    color: "#854d0e",
+    background: "#fef9c3",
+    padding: "1px 5px",
+    borderRadius: 8,
+    textTransform: "none",
+    letterSpacing: 0,
+  },
+  summaryBody: {
+    fontSize: 12,
+    color: "#374151",
+    lineHeight: 1.5,
+    whiteSpace: "pre-wrap",
+    background: "#fff",
+    border: "1px solid #eef2f7",
+    borderRadius: 8,
+    padding: "10px 12px",
+  },
+  summaryMeta: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 6,
+    fontSize: 11,
+    color: "#9ca3af",
+  },
+  regenBtn: {
+    background: "none",
+    border: "none",
+    color: "#4f46e5",
+    fontSize: 12,
+    cursor: "pointer",
+    padding: 0,
+    marginLeft: 8,
   },
   detailKey: {
     color: "#9ca3af",
