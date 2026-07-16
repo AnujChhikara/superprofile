@@ -11,6 +11,16 @@ import { conversationsRouter } from "./routes/conversations.js";
 import { db, newId } from "./db/client.js";
 import { contacts, conversations, messages } from "./db/schema.js";
 import { eq, lt, and } from "drizzle-orm";
+import {
+  onMessageCreated,
+  onConversationUpdated,
+  emitConversationUpdated,
+} from "./events.js";
+import {
+  initSocket,
+  emitToWorkspace,
+  emitToConversation,
+} from "./realtime/socket.js";
 
 export const app = express();
 export const httpServer = http.createServer(app);
@@ -72,6 +82,18 @@ app.use("/api/invites", invitesRouter);
 
 // Conversations routes
 app.use("/api/conversations", conversationsRouter);
+
+// ---- Realtime fan-out: turn in-process events into socket broadcasts ----
+// Registered at module load; the emit helpers no-op until initSocket runs
+// (so tests, which never init the socket server, are unaffected).
+onMessageCreated(({ workspaceId, message }) => {
+  const payload = { conversationId: message.conversationId, message };
+  emitToConversation(message.conversationId, "message:new", payload);
+  emitToWorkspace(workspaceId, "message:new", payload);
+});
+onConversationUpdated(({ workspaceId, conversation }) => {
+  emitToWorkspace(workspaceId, "conversation:updated", { conversation });
+});
 
 // Dev seed route — only mounted when DEMO_MODE is true
 if (env.DEMO_MODE) {
@@ -207,11 +229,22 @@ if (env.DEMO_MODE) {
   });
 }
 
-// Snooze sweeper: reopen snoozed conversations whose snoozedUntil has passed
+// Snooze sweeper: reopen snoozed conversations whose snoozedUntil has passed,
+// then emit conversation:updated per reopened row so open inboxes update live.
 if (process.env.VITEST === undefined) {
   const sweeper = setInterval(async () => {
     try {
       const now = new Date();
+      const due = await db
+        .select()
+        .from(conversations)
+        .where(
+          and(
+            eq(conversations.status, "snoozed"),
+            lt(conversations.snoozedUntil, now)
+          )
+        );
+      if (due.length === 0) return;
       await db
         .update(conversations)
         .set({ status: "open", snoozedUntil: null })
@@ -221,11 +254,18 @@ if (process.env.VITEST === undefined) {
             lt(conversations.snoozedUntil, now)
           )
         );
+      for (const row of due) {
+        emitConversationUpdated({
+          workspaceId: row.workspaceId,
+          conversation: { ...row, status: "open", snoozedUntil: null },
+        });
+      }
     } catch (err) {
       console.error("[snooze-sweeper]", err);
     }
   }, 60_000);
   sweeper.unref();
 
+  initSocket(httpServer);
   httpServer.listen(env.PORT, () => console.log(`listening :${env.PORT}`));
 }

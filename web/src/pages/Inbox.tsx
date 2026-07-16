@@ -2,6 +2,106 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api.js";
 import { useAuth } from "../auth.js";
+import { getSocket } from "../lib/socket.js";
+
+// ------------------------------------------------------------------
+// Realtime: subscribe the socket to the query cache. Returns per-conversation
+// typing + contact-read state plus a helper to emit the agent's typing.
+// ------------------------------------------------------------------
+function useInboxRealtime(workspaceId: string | null) {
+  const queryClient = useQueryClient();
+  const [typingByConv, setTypingByConv] = useState<Record<string, boolean>>({});
+  const [readSeqByConv, setReadSeqByConv] = useState<Record<string, number>>({});
+  const socketRef = useRef<ReturnType<typeof getSocket> | null>(null);
+  const typingTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    const socket = getSocket(workspaceId);
+    socketRef.current = socket;
+
+    const onMessageNew = (p: { conversationId: string; message: Message }) => {
+      queryClient.setQueryData<Message[]>(
+        ["messages", p.conversationId],
+        (old) => {
+          if (!old) return old; // thread not open/loaded — list refetch covers it
+          if (old.some((m) => m.id === p.message.id)) return old; // dedupe
+          return [...old, p.message];
+        }
+      );
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    };
+
+    const onConvUpdated = (p: { conversation: Conversation }) => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({
+        queryKey: ["conversation", p.conversation.id],
+      });
+    };
+
+    const onTyping = (p: {
+      conversationId: string;
+      senderType: "contact" | "agent";
+      isTyping: boolean;
+    }) => {
+      if (p.senderType !== "contact") return; // only surface the visitor typing
+      setTypingByConv((s) => ({ ...s, [p.conversationId]: p.isTyping }));
+      // Auto-clear a stuck "typing" after 4s in case the stop event is lost.
+      clearTimeout(typingTimers.current[p.conversationId]);
+      if (p.isTyping) {
+        typingTimers.current[p.conversationId] = setTimeout(() => {
+          setTypingByConv((s) => ({ ...s, [p.conversationId]: false }));
+        }, 4000);
+      }
+    };
+
+    const onRead = (p: {
+      conversationId: string;
+      senderType: "contact" | "agent";
+      upToSeq: number;
+    }) => {
+      // senderType "contact" here means the visitor read the agent's messages.
+      if (p.senderType !== "contact") return;
+      setReadSeqByConv((s) => ({
+        ...s,
+        [p.conversationId]: Math.max(s[p.conversationId] ?? 0, p.upToSeq),
+      }));
+    };
+
+    const onReconnect = () => {
+      // Refetch to close any gap while disconnected (no dupes: refetch replaces).
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+    };
+
+    socket.on("message:new", onMessageNew);
+    socket.on("conversation:updated", onConvUpdated);
+    socket.on("typing", onTyping);
+    socket.on("read", onRead);
+    socket.io.on("reconnect", onReconnect);
+
+    return () => {
+      socket.off("message:new", onMessageNew);
+      socket.off("conversation:updated", onConvUpdated);
+      socket.off("typing", onTyping);
+      socket.off("read", onRead);
+      socket.io.off("reconnect", onReconnect);
+    };
+  }, [workspaceId, queryClient]);
+
+  const emitTyping = useCallback(
+    (conversationId: string, isTyping: boolean) => {
+      socketRef.current?.emit("typing", { conversationId, isTyping });
+    },
+    []
+  );
+
+  const joinConversation = useCallback((conversationId: string) => {
+    socketRef.current?.emit("join", { conversationId });
+  }, []);
+
+  return { typingByConv, readSeqByConv, emitTyping, joinConversation };
+}
 
 // ------------------------------------------------------------------
 // Types
@@ -100,7 +200,6 @@ function ConversationList({
   const { data: conversations = [], isLoading } = useQuery<Conversation[]>({
     queryKey: ["conversations", channel, status, assigneeFilter],
     queryFn: () => api<Conversation[]>(`/api/conversations?${params}`),
-    refetchInterval: 10000,
   });
 
   if (isLoading) {
@@ -184,36 +283,56 @@ interface ThreadPaneProps {
   conversationId: string;
   userId: string;
   onConversationUpdated: () => void;
+  contactTyping: boolean;
+  contactReadSeq: number;
+  emitTyping: (conversationId: string, isTyping: boolean) => void;
+  joinConversation: (conversationId: string) => void;
 }
 
 function ThreadPane({
   conversationId,
   userId,
   onConversationUpdated,
+  contactTyping,
+  contactReadSeq,
+  emitTyping,
+  joinConversation,
 }: ThreadPaneProps) {
   const [draft, setDraft] = useState("");
   const queryClient = useQueryClient();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const typingStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTypingRef = useRef(false);
 
   const { data: messages = [] } = useQuery<Message[]>({
     queryKey: ["messages", conversationId],
     queryFn: () => api<Message[]>(`/api/conversations/${conversationId}/messages`),
-    refetchInterval: 10000,
   });
 
-  // Mark as read when conversation is opened
+  // Join the conversation room + mark as read when opened.
   useEffect(() => {
+    joinConversation(conversationId);
     api(`/api/conversations/${conversationId}/read`, { method: "POST" }).catch(
       () => {}
     );
-    // Invalidate conversation list to update unread count
     queryClient.invalidateQueries({ queryKey: ["conversations"] });
-  }, [conversationId, queryClient]);
+  }, [conversationId, queryClient, joinConversation]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change or the contact starts typing.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, contactTyping]);
+
+  // Stop broadcasting "typing" when the thread changes or unmounts.
+  useEffect(() => {
+    return () => {
+      if (isTypingRef.current) {
+        emitTyping(conversationId, false);
+        isTypingRef.current = false;
+      }
+      if (typingStopTimer.current) clearTimeout(typingStopTimer.current);
+    };
+  }, [conversationId, emitTyping]);
 
   const sendMutation = useMutation({
     mutationFn: (body: string) =>
@@ -223,11 +342,30 @@ function ThreadPane({
       }),
     onSuccess: () => {
       setDraft("");
+      // Stop the typing indicator immediately on send.
+      if (isTypingRef.current) {
+        emitTyping(conversationId, false);
+        isTypingRef.current = false;
+      }
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       onConversationUpdated();
     },
   });
+
+  function handleDraftChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setDraft(e.target.value);
+    // Emit "typing: true" on first keystroke, debounce "false" 2s after the last.
+    if (!isTypingRef.current) {
+      emitTyping(conversationId, true);
+      isTypingRef.current = true;
+    }
+    if (typingStopTimer.current) clearTimeout(typingStopTimer.current);
+    typingStopTimer.current = setTimeout(() => {
+      emitTyping(conversationId, false);
+      isTypingRef.current = false;
+    }, 2000);
+  }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -238,18 +376,42 @@ function ThreadPane({
     }
   }
 
+  // The highest agent-message seq the contact has read → renders ✓✓.
   return (
     <div style={styles.threadPane}>
       <div style={styles.thread}>
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} userId={userId} />
+          <MessageBubble
+            key={msg.id}
+            message={msg}
+            userId={userId}
+            readByContact={
+              msg.senderType === "agent" && msg.seq <= contactReadSeq
+            }
+          />
         ))}
+        {contactTyping && (
+          <div style={{ ...styles.bubbleWrap, justifyContent: "flex-start" }}>
+            <div
+              style={{
+                ...styles.bubble,
+                background: "#f3f4f6",
+                color: "#6b7280",
+                borderRadius: "16px 16px 16px 4px",
+                fontSize: 13,
+                fontStyle: "italic",
+              }}
+            >
+              typing…
+            </div>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
       <div style={styles.composer}>
         <textarea
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={handleDraftChange}
           onKeyDown={handleKeyDown}
           placeholder="Type a reply… (Enter to send, Shift+Enter for newline)"
           style={styles.composerTextarea}
@@ -273,12 +435,15 @@ function ThreadPane({
 function MessageBubble({
   message,
   userId,
+  readByContact,
 }: {
   message: Message;
   userId: string;
+  readByContact?: boolean;
 }) {
   const isAgent =
     message.senderType === "agent" && message.senderId === userId;
+  const isOwnAgent = message.senderType === "agent";
   const isSystem = message.senderType === "system";
 
   if (isSystem) {
@@ -321,6 +486,11 @@ function MessageBubble({
           }}
         >
           {formatTime(message.createdAt)}
+          {isOwnAgent && (
+            <span style={{ marginLeft: 6 }} title={readByContact ? "Read" : "Sent"}>
+              {readByContact ? "✓✓" : "✓"}
+            </span>
+          )}
         </span>
       </div>
     </div>
@@ -345,7 +515,6 @@ function DetailPane({ conversationId, onUpdated }: DetailPaneProps) {
       api<Conversation & { contact: Contact | null }>(
         `/api/conversations/${conversationId}`
       ),
-    refetchInterval: 10000,
   });
 
   const { data: team = [] } = useQuery<TeamMember[]>({
@@ -541,8 +710,11 @@ function DetailPane({ conversationId, onUpdated }: DetailPaneProps) {
 // Main Inbox page
 // ------------------------------------------------------------------
 export default function Inbox() {
-  const { user } = useAuth();
+  const { user, activeWorkspace } = useAuth();
   const queryClient = useQueryClient();
+
+  const { typingByConv, readSeqByConv, emitTyping, joinConversation } =
+    useInboxRealtime(activeWorkspace?.id ?? null);
 
   const [channelTab, setChannelTab] = useState<"all" | "chat" | "email">("all");
   const [statusFilter, setStatusFilter] = useState<
@@ -632,6 +804,10 @@ export default function Inbox() {
             conversationId={selectedConvId}
             userId={user.id}
             onConversationUpdated={handleConversationUpdated}
+            contactTyping={!!typingByConv[selectedConvId]}
+            contactReadSeq={readSeqByConv[selectedConvId] ?? 0}
+            emitTyping={emitTyping}
+            joinConversation={joinConversation}
           />
         ) : (
           <div style={styles.emptyThread}>

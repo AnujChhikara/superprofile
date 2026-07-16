@@ -7,14 +7,12 @@ import {
   listMessages,
   createMessage,
   updateConversation,
+  markContactMessagesRead,
 } from "../repos/conversations.js";
 import {
   emitMessageCreated,
   emitConversationUpdated,
 } from "../events.js";
-import { db } from "../db/client.js";
-import { messages } from "../db/schema.js";
-import { and, eq, isNull } from "drizzle-orm";
 
 export const conversationsRouter = Router();
 
@@ -200,22 +198,8 @@ conversationsRouter.post(
     const id = String(req.params.id);
 
     try {
-      // Verify the conversation belongs to this workspace
-      await getConversation(wsId, id);
-
-      // Mark all unread contact messages as read
-      await db
-        .update(messages)
-        .set({ readAt: new Date() })
-        .where(
-          and(
-            eq(messages.conversationId, id),
-            eq(messages.workspaceId, wsId),
-            eq(messages.senderType, "contact"),
-            isNull(messages.readAt)
-          )
-        );
-
+      // Mark all unread contact messages as read (verifies workspace scope).
+      await markContactMessagesRead(wsId, id, "contact");
       return void res.json({ ok: true });
     } catch (err: unknown) {
       if ((err as { status?: number }).status === 404) {

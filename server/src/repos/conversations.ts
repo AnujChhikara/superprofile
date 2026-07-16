@@ -283,6 +283,39 @@ export async function updateConversation(
 }
 
 // ------------------------------------------------------------------
+// Mark messages from one side as read (agent reads contact msgs, etc.)
+// ------------------------------------------------------------------
+export async function markContactMessagesRead(
+  workspaceId: string,
+  conversationId: string,
+  senderType: "contact" | "agent"
+): Promise<void> {
+  // Verify the conversation belongs to this workspace.
+  const convRows = await db
+    .select({ id: conversations.id })
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.id, conversationId),
+        eq(conversations.workspaceId, workspaceId)
+      )
+    );
+  if (!convRows[0]) notFound("conversation not found");
+
+  await db
+    .update(messages)
+    .set({ readAt: new Date() })
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        eq(messages.workspaceId, workspaceId),
+        eq(messages.senderType, senderType),
+        isNull(messages.readAt)
+      )
+    );
+}
+
+// ------------------------------------------------------------------
 // Find or create contact
 // ------------------------------------------------------------------
 export async function findOrCreateContact(
