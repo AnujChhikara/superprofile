@@ -1,0 +1,9 @@
+{
+  "name": "superprofile",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter server dev",
+    "test": "pnpm -r test"
+  }
+}

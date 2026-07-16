@@ -1,0 +1,8 @@
+packages:
+  - server
+  - web
+  - widget
+onlyBuiltDependencies:
+  - esbuild
+allowBuilds:
+  esbuild: true
