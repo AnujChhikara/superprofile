@@ -122,6 +122,77 @@ export async function listConversations(
 }
 
 // ------------------------------------------------------------------
+// Create a conversation (used by widget chat + inbound email)
+// ------------------------------------------------------------------
+export async function createConversation(
+  workspaceId: string,
+  input: {
+    contactId: string;
+    channel: "chat" | "email";
+    subject?: string | null;
+    status?: "open" | "snoozed" | "resolved";
+  }
+): Promise<Conversation> {
+  const id = newId();
+  await db.insert(conversations).values({
+    id,
+    workspaceId,
+    contactId: input.contactId,
+    channel: input.channel,
+    subject: input.subject ?? null,
+    status: input.status ?? "open",
+    lastMessageAt: new Date(),
+  });
+  const rows = await db
+    .select()
+    .from(conversations)
+    .where(eq(conversations.id, id));
+  return rows[0];
+}
+
+// ------------------------------------------------------------------
+// List a single contact's conversations (widget history)
+// ------------------------------------------------------------------
+export async function listConversationsForContact(
+  workspaceId: string,
+  contactId: string
+): Promise<
+  Array<Conversation & { lastMessageBody: string | null }>
+> {
+  const rows = await db
+    .select()
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.workspaceId, workspaceId),
+        eq(conversations.contactId, contactId)
+      )
+    )
+    .orderBy(desc(conversations.lastMessageAt));
+  if (rows.length === 0) return [];
+
+  const convIds = rows.map((r) => r.id);
+  const lastMsgRows = await db
+    .select({
+      conversationId: messages.conversationId,
+      body: messages.body,
+      seq: messages.seq,
+    })
+    .from(messages)
+    .where(inArray(messages.conversationId, convIds))
+    .orderBy(desc(messages.seq));
+  const lastMsgMap = new Map<string, string>();
+  for (const m of lastMsgRows) {
+    if (!lastMsgMap.has(m.conversationId))
+      lastMsgMap.set(m.conversationId, m.body);
+  }
+  return rows.map((c) => ({
+    ...c,
+    lastMessageBody: lastMsgMap.get(c.id) ?? null,
+  }));
+}
+
+// ------------------------------------------------------------------
 // Get single conversation (404 if not in workspace)
 // ------------------------------------------------------------------
 export async function getConversation(

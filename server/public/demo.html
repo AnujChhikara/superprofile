@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acme Cloud — deploy anything</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, sans-serif;
+        color: #0f172a;
+        background: #f8fafc;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 40px;
+        border-bottom: 1px solid #e2e8f0;
+        background: #fff;
+      }
+      .logo { font-weight: 800; font-size: 20px; color: #4f46e5; }
+      nav a { margin-left: 24px; color: #475569; text-decoration: none; font-size: 14px; }
+      .hero {
+        text-align: center;
+        padding: 90px 20px 60px;
+        background: linear-gradient(180deg, #eef2ff, #f8fafc);
+      }
+      .hero h1 { font-size: 44px; margin: 0 0 16px; }
+      .hero p { font-size: 18px; color: #475569; max-width: 620px; margin: 0 auto 28px; }
+      .cta {
+        background: #4f46e5;
+        color: #fff;
+        border: none;
+        padding: 14px 28px;
+        border-radius: 10px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .pricing {
+        display: flex;
+        gap: 24px;
+        justify-content: center;
+        flex-wrap: wrap;
+        padding: 60px 20px 100px;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 32px;
+        width: 280px;
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+      }
+      .card h3 { margin: 0 0 8px; }
+      .price { font-size: 34px; font-weight: 800; margin: 12px 0; }
+      .card ul { list-style: none; padding: 0; color: #475569; font-size: 14px; line-height: 2; }
+      .card.popular { border-color: #4f46e5; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="logo">◆ Acme Cloud</div>
+      <nav>
+        <a href="#">Product</a>
+        <a href="#">Pricing</a>
+        <a href="#">Docs</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <h1>Deploy anything, anywhere.</h1>
+      <p>
+        Ship your apps to the edge in seconds. Zero config, global by default,
+        and priced for teams of every size.
+      </p>
+      <button class="cta">Start free trial</button>
+    </section>
+
+    <section class="pricing">
+      <div class="card">
+        <h3>Hobby</h3>
+        <div class="price">$0</div>
+        <ul>
+          <li>1 project</li>
+          <li>Community support</li>
+          <li>100 GB bandwidth</li>
+        </ul>
+      </div>
+      <div class="card popular">
+        <h3>Pro</h3>
+        <div class="price">$20</div>
+        <ul>
+          <li>Unlimited projects</li>
+          <li>Priority support</li>
+          <li>1 TB bandwidth</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Enterprise</h3>
+        <div class="price">Custom</div>
+        <ul>
+          <li>SSO & audit logs</li>
+          <li>Dedicated support</li>
+          <li>Custom SLAs</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Support widget snippet (pk_DEMO_KEY replaced at request time) -->
+    <script src="/widget.js" data-workspace="pk_DEMO_KEY" async></script>
+  </body>
+</html>

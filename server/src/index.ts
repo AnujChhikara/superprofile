@@ -1,5 +1,8 @@
 import express from "express";
 import http from "http";
+import path from "path";
+import { fileURLToPath } from "url";
+import { readFileSync } from "fs";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { env } from "./env.js";
@@ -8,8 +11,9 @@ import { authRouter, meRouter } from "./routes/auth.js";
 import { workspacesRouter } from "./routes/workspaces.js";
 import { teamRouter, invitesRouter } from "./routes/team.js";
 import { conversationsRouter } from "./routes/conversations.js";
+import { widgetRouter } from "./routes/widget.js";
 import { db, newId } from "./db/client.js";
-import { contacts, conversations, messages } from "./db/schema.js";
+import { contacts, conversations, messages, workspaces } from "./db/schema.js";
 import { eq, lt, and } from "drizzle-orm";
 import {
   onMessageCreated,
@@ -67,6 +71,37 @@ app.use("/api/auth", (req, res, next) => {
 });
 
 app.get("/healthz", (_req, res) => res.json({ ok: true, ts: Date.now() }));
+
+// ---- Widget: public, embeddable on ANY third-party origin ----
+// Mounted BEFORE the /api CSRF origin check (which would reject cross-origin
+// POSTs). Auth is by workspaceKey + visitorToken in the body, not cookies, so
+// permissive CORS without credentials is safe here.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const publicDir = path.join(__dirname, "..", "public");
+
+app.use("/api/widget", cors({ origin: true, credentials: false }), widgetRouter);
+
+// Loader script + built frame assets.
+app.use(express.static(publicDir));
+// SPA entry for the widget iframe (any ?ws=... query).
+app.get("/widget/frame", (_req, res) => {
+  res.sendFile(path.join(publicDir, "widget", "index.html"), (err) => {
+    if (err) res.status(404).send("widget frame not built");
+  });
+});
+// Demo landing page with the seeded demo workspace key injected.
+app.get("/demo", async (_req, res) => {
+  try {
+    let html = readFileSync(path.join(publicDir, "demo.html"), "utf8");
+    const demo = (
+      await db.select().from(workspaces).where(eq(workspaces.slug, "acme"))
+    )[0];
+    if (demo) html = html.replaceAll("pk_DEMO_KEY", demo.publicKey);
+    res.type("html").send(html);
+  } catch {
+    res.status(404).send("demo not built");
+  }
+});
 
 // CSRF guard for all /api mutating requests
 app.use("/api", checkOrigin);

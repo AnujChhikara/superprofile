@@ -4,3 +4,6 @@ dist
 deploy-out
 *.zip
 .superpowers/
+# Built widget artifacts (generated into server/public by `pnpm --filter widget build`)
+server/public/widget/
+server/public/widget.js

@@ -1,0 +1,20 @@
+{
+  "name": "widget",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build:frame": "vite build",
+    "build:loader": "vite build --config vite.loader.config.ts",
+    "build": "pnpm run build:frame && pnpm run build:loader"
+  },
+  "dependencies": {
+    "preact": "^10.24.3",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^8.1.1"
+  }
+}

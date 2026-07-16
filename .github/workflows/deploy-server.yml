@@ -10,7 +10,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter server build   # tsc + copies widget/public later
+      - run: pnpm --filter widget build   # loader + frame → server/public
+      - run: pnpm --filter server build   # tsc
       - run: cd server && pnpm deploy --prod --legacy ../deploy-out && cd ../deploy-out && zip -r ../server.zip .
       - uses: azure/webapps-deploy@v3
         with:

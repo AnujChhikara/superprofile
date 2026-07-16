@@ -298,6 +298,11 @@ export function initSocket(httpServer: http.Server): Server {
   return io;
 }
 
+// Whether at least one agent socket is currently connected for a workspace.
+export function isAgentOnline(workspaceId: string): boolean {
+  return (agentSocketsByWs.get(workspaceId)?.size ?? 0) > 0;
+}
+
 // ---- emit helpers used by events.ts subscribers ----
 export function emitToWorkspace<E extends keyof ServerEvents>(
   workspaceId: string,
