@@ -26,6 +26,10 @@ app.use("/api/auth", (req, res, next) => {
   );
   timestamps.push(now);
   authRateMap.set(ip, timestamps);
+  // Evict stale IP entries so the map doesn't grow unbounded.
+  for (const [k, ts] of authRateMap) {
+    if (now - (ts[ts.length - 1] ?? 0) >= window) authRateMap.delete(k);
+  }
   if (timestamps.length > limit) {
     return void res.status(429).json({ error: "rate limit exceeded" });
   }

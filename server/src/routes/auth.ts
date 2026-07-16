@@ -10,7 +10,7 @@ import { requireAuth } from "../auth/middleware.js";
 import { db, newId } from "../db/client.js";
 import { users, sessions, memberships, workspaces } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
-import { env } from "../env.js";
+import { env, isProd } from "../env.js";
 
 export const authRouter = Router();
 
@@ -30,7 +30,7 @@ authRouter.get("/google", (req, res) => {
   res.cookie("oauth_state", stateToken, {
     httpOnly: true,
     sameSite: "lax",
-    secure: env.NODE_ENV === "production",
+    secure: isProd,
     maxAge: 10 * 60 * 1000, // 10 minutes
     path: "/",
   });
@@ -127,7 +127,13 @@ authRouter.get("/google/callback", async (req, res) => {
 authRouter.post("/logout", async (req, res) => {
   const raw = req.cookies?.sid;
   if (raw) {
-    await destroySession(raw);
+    // Best-effort: always clear the cookie and return 200 even if the DB call
+    // fails (the session row will still age out via expiresAt).
+    try {
+      await destroySession(raw);
+    } catch {
+      // ignore — cookie is cleared below regardless
+    }
   }
   res.clearCookie("sid", { ...sessionCookieOptions(), maxAge: 0 });
   res.json({ ok: true });

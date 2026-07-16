@@ -13,11 +13,25 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
   next();
 };
 
-// CSRF guard: mutating requests must come from our app origin
+// CSRF guard: mutating requests must come from our app origin.
+// Exempt prefixes are non-browser / cross-origin paths that do NOT use cookie
+// auth: /api/inbound/* is the SendGrid inbound webhook (server-to-server,
+// authenticated by its own shared secret — Task 8), and /api/widget/* is the
+// embeddable widget which posts cross-origin using its own token auth.
+const ORIGIN_EXEMPT_PREFIXES = ["/api/inbound", "/api/widget"];
 export const checkOrigin: RequestHandler = (req, res, next) => {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
-  const origin = req.headers.origin ?? "";
-  if (origin && origin !== env.APP_ORIGIN)
+  if (ORIGIN_EXEMPT_PREFIXES.some((p) => req.originalUrl.startsWith(p)))
+    return next();
+  const origin = req.headers.origin;
+  if (origin) {
+    if (origin !== env.APP_ORIGIN)
+      return void res.status(403).json({ error: "bad origin" });
+    return next();
+  }
+  // No Origin header: fall back to Referer prefix; reject if both are absent.
+  const referer = req.headers.referer;
+  if (!referer || !referer.startsWith(env.APP_ORIGIN))
     return void res.status(403).json({ error: "bad origin" });
   next();
 };

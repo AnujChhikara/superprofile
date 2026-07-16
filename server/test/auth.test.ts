@@ -73,12 +73,35 @@ describe("auth routes (integration)", () => {
       .set("Origin", "http://localhost:5173");
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    // Cookie should be cleared (maxAge=0 or Expires in past)
+    // Set-Cookie MUST be present and clear sid (empty value + Max-Age=0 / past Expires)
     const setCookie = res.headers["set-cookie"] as string | string[] | undefined;
-    if (setCookie) {
-      const cookieStr = Array.isArray(setCookie) ? setCookie.join("; ") : setCookie;
-      expect(cookieStr).toMatch(/sid=/);
-    }
+    expect(setCookie).toBeDefined();
+    const cookieStr = Array.isArray(setCookie!)
+      ? setCookie!.join("; ")
+      : setCookie!;
+    expect(cookieStr).toMatch(/sid=;/);
+    expect(cookieStr).toMatch(/Max-Age=0|Expires=Thu, 01 Jan 1970/i);
+  });
+
+  it("POST with no Origin and no Referer → 403 (CSRF guard)", async () => {
+    const res = await request(app).post("/api/auth/logout");
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("bad origin");
+  });
+
+  it("POST with matching Referer but no Origin → allowed", async () => {
+    const res = await request(app)
+      .post("/api/auth/logout")
+      .set("Referer", "http://localhost:5173/settings");
+    expect(res.status).toBe(200);
+  });
+
+  it("POST with wrong Origin → 403", async () => {
+    const res = await request(app)
+      .post("/api/auth/logout")
+      .set("Origin", "https://evil.example.com");
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("bad origin");
   });
 
   it("createSession + getSessionUser DB round-trip", async () => {
