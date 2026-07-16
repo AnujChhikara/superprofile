@@ -11,6 +11,15 @@ import { env } from "../env.js";
 export const teamRouter = Router();
 export const invitesRouter = Router();
 
+// Escape HTML special characters for safe interpolation into email HTML bodies
+const escapeHtml = (s: string) =>
+  s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 // GET /api/team — list members (any member of workspace)
 teamRouter.get(
   "/",
@@ -76,20 +85,27 @@ teamRouter.post(
     });
 
     const inviteUrl = `${env.APP_ORIGIN}/invite/${token}`;
+    const wsName = ws?.name ?? "a workspace";
 
-    // Send invite email (logs in dev when SENDGRID_API_KEY is unset)
-    await sendEmail({
-      to: email,
-      subject: `You've been invited to ${ws?.name ?? "a workspace"} on SuperProfile`,
-      text:
-        `You've been invited to join ${ws?.name ?? "a workspace"} as ${role}.\n\n` +
-        `Accept your invite here:\n${inviteUrl}\n\n` +
-        `This invite expires in 7 days.`,
-      html:
-        `<p>You've been invited to join <strong>${ws?.name ?? "a workspace"}</strong> as <em>${role}</em>.</p>` +
-        `<p><a href="${inviteUrl}">Accept your invite</a></p>` +
-        `<p>This invite expires in 7 days.</p>`,
-    });
+    // Send invite email (logs in dev when SENDGRID_API_KEY is unset).
+    // The invite row is already committed — a SendGrid failure must not block
+    // the response; the admin can still share the returned inviteUrl.
+    try {
+      await sendEmail({
+        to: email,
+        subject: `You've been invited to ${wsName} on SuperProfile`,
+        text:
+          `You've been invited to join ${wsName} as ${role}.\n\n` +
+          `Accept your invite here:\n${inviteUrl}\n\n` +
+          `This invite expires in 7 days.`,
+        html:
+          `<p>You've been invited to join <strong>${escapeHtml(wsName)}</strong> as <em>${role}</em>.</p>` +
+          `<p><a href="${inviteUrl}">Accept your invite</a></p>` +
+          `<p>This invite expires in 7 days.</p>`,
+      });
+    } catch (err) {
+      console.error("[team] invite email send failed:", err);
+    }
 
     return void res.status(201).json({ inviteUrl });
   }
@@ -172,6 +188,18 @@ const patchMemberBody = z.object({
   role: z.enum(["admin", "agent"]),
 });
 
+// True when the given member is an admin and no OTHER admin exists in the
+// workspace — demoting or removing them would leave the workspace admin-less.
+async function isLastAdmin(wsId: string, userId: string): Promise<boolean> {
+  const admins = await db
+    .select({ userId: memberships.userId })
+    .from(memberships)
+    .where(
+      and(eq(memberships.workspaceId, wsId), eq(memberships.role, "admin"))
+    );
+  return admins.length === 1 && admins[0].userId === userId;
+}
+
 // PATCH /api/team/members/:userId — change role (admin only)
 teamRouter.patch(
   "/members/:userId",
@@ -203,6 +231,17 @@ teamRouter.patch(
 
     if (!membership) {
       return void res.status(404).json({ error: "member not found" });
+    }
+
+    // Last-admin lockout guard: refuse to demote the only admin
+    if (
+      role === "agent" &&
+      membership.role === "admin" &&
+      (await isLastAdmin(wsId, targetUserId))
+    ) {
+      return void res
+        .status(409)
+        .json({ error: "workspace must have at least one admin" });
     }
 
     await db
@@ -241,6 +280,16 @@ teamRouter.delete(
 
     if (!membership) {
       return void res.status(404).json({ error: "member not found" });
+    }
+
+    // Last-admin lockout guard: refuse to remove the only admin
+    if (
+      membership.role === "admin" &&
+      (await isLastAdmin(wsId, targetUserId))
+    ) {
+      return void res
+        .status(409)
+        .json({ error: "workspace must have at least one admin" });
     }
 
     await db

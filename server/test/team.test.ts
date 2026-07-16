@@ -413,4 +413,96 @@ describe("team & workspace routes (integration)", () => {
     // The list should only be for ws1 — userA
     expect(wsIds.size).toBeGreaterThanOrEqual(1);
   });
+
+  // ------------------------------------------------------------------
+  // Last-admin lockout guard
+  // (state here: ws1 has userA as admin + userB as agent)
+  // ------------------------------------------------------------------
+  it("PATCH demoting the last admin → 409", async () => {
+    const res = await request(app)
+      .patch(`/api/team/members/${userA.id}`)
+      .set("Cookie", userA.cookie)
+      .set("Origin", ORIGIN)
+      .set("X-Workspace-Id", workspaceId)
+      .send({ role: "agent" });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("workspace must have at least one admin");
+
+    // Role must be unchanged
+    const mem = await db.query.memberships.findFirst({
+      where: (m, { and, eq }) =>
+        and(eq(m.userId, userA.id), eq(m.workspaceId, workspaceId)),
+    });
+    expect(mem?.role).toBe("admin");
+  });
+
+  it("DELETE removing the last admin → 409", async () => {
+    const res = await request(app)
+      .delete(`/api/team/members/${userA.id}`)
+      .set("Cookie", userA.cookie)
+      .set("Origin", ORIGIN)
+      .set("X-Workspace-Id", workspaceId);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("workspace must have at least one admin");
+
+    // Membership must still exist
+    const mem = await db.query.memberships.findFirst({
+      where: (m, { and, eq }) =>
+        and(eq(m.userId, userA.id), eq(m.workspaceId, workspaceId)),
+    });
+    expect(mem?.role).toBe("admin");
+  });
+
+  it("PATCH demoting an admin works when another admin exists", async () => {
+    // Promote userB to admin so ws1 has two admins
+    const promote = await request(app)
+      .patch(`/api/team/members/${userB.id}`)
+      .set("Cookie", userA.cookie)
+      .set("Origin", ORIGIN)
+      .set("X-Workspace-Id", workspaceId)
+      .send({ role: "admin" });
+    expect(promote.status).toBe(200);
+
+    // Now demoting userA succeeds (userB remains admin)
+    const demote = await request(app)
+      .patch(`/api/team/members/${userA.id}`)
+      .set("Cookie", userB.cookie)
+      .set("Origin", ORIGIN)
+      .set("X-Workspace-Id", workspaceId)
+      .send({ role: "agent" });
+    expect(demote.status).toBe(200);
+
+    const mem = await db.query.memberships.findFirst({
+      where: (m, { and, eq }) =>
+        and(eq(m.userId, userA.id), eq(m.workspaceId, workspaceId)),
+    });
+    expect(mem?.role).toBe("agent");
+  });
+
+  it("DELETE removing an admin works when another admin exists", async () => {
+    // Promote userA back to admin (by userB, current admin) → two admins again
+    const promote = await request(app)
+      .patch(`/api/team/members/${userA.id}`)
+      .set("Cookie", userB.cookie)
+      .set("Origin", ORIGIN)
+      .set("X-Workspace-Id", workspaceId)
+      .send({ role: "admin" });
+    expect(promote.status).toBe(200);
+
+    // Deleting admin userB succeeds because userA is still an admin
+    const del = await request(app)
+      .delete(`/api/team/members/${userB.id}`)
+      .set("Cookie", userA.cookie)
+      .set("Origin", ORIGIN)
+      .set("X-Workspace-Id", workspaceId);
+    expect(del.status).toBe(200);
+
+    const mem = await db.query.memberships.findFirst({
+      where: (m, { and, eq }) =>
+        and(eq(m.userId, userB.id), eq(m.workspaceId, workspaceId)),
+    });
+    expect(mem).toBeUndefined();
+  });
 });

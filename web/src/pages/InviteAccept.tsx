@@ -9,7 +9,9 @@ export default function InviteAccept() {
   const { user, isLoading, refetch, setActiveWorkspace, workspaces } = useAuth();
   const [status, setStatus] = useState<"idle" | "accepting" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [acceptedWsId, setAcceptedWsId] = useState<string | null>(null);
 
+  // Step 1: accept the invite (or bounce to login) once auth state is known
   useEffect(() => {
     if (isLoading) return;
 
@@ -22,20 +24,13 @@ export default function InviteAccept() {
 
     if (status !== "idle") return;
 
-    // Accept the invite
     setStatus("accepting");
     api<{ ok: boolean; workspaceId: string }>(`/api/invites/${token}/accept`, {
       method: "POST",
     })
       .then((data) => {
+        setAcceptedWsId(data.workspaceId);
         refetch();
-        // Wait a tick for refetch to populate workspaces, then navigate
-        setTimeout(() => {
-          const ws = workspaces.find((w) => w.id === data.workspaceId);
-          if (ws) setActiveWorkspace(ws);
-          setStatus("done");
-          navigate("/inbox", { replace: true });
-        }, 600);
       })
       .catch((err: Error) => {
         setStatus("error");
@@ -43,6 +38,17 @@ export default function InviteAccept() {
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, user, token]);
+
+  // Step 2: once the refetched workspaces list contains the accepted
+  // workspace, activate it and navigate — no fixed sleeps.
+  useEffect(() => {
+    if (!acceptedWsId || status === "done") return;
+    const ws = workspaces.find((w) => w.id === acceptedWsId);
+    if (!ws) return;
+    setActiveWorkspace(ws);
+    setStatus("done");
+    navigate("/inbox", { replace: true });
+  }, [acceptedWsId, workspaces, status, setActiveWorkspace, navigate]);
 
   if (isLoading || status === "idle" || status === "accepting") {
     return (

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db, newId } from "../db/client.js";
 import { workspaces, memberships } from "../db/schema.js";
 import { requireAuth } from "../auth/middleware.js";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export const workspacesRouter = Router();
 
@@ -61,10 +61,14 @@ workspacesRouter.get("/:id", requireAuth, async (req, res) => {
   const memberRows = await db
     .select()
     .from(memberships)
-    .where(eq(memberships.workspaceId, wsId));
+    .where(
+      and(
+        eq(memberships.workspaceId, wsId),
+        eq(memberships.userId, user.id)
+      )
+    );
 
-  const myMembership = memberRows.find((m) => m.userId === user.id);
-  if (!myMembership) {
+  if (!memberRows[0]) {
     return void res.status(403).json({ error: "not a member" });
   }
 
