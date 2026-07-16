@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, boolean, uniqueIndex, index, customType } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, uniqueIndex, index, customType } from "drizzle-orm/pg-core";
 const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
 const id = () => text("id").primaryKey();
 const ws = () => text("workspace_id").notNull();
