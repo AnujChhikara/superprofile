@@ -7,6 +7,10 @@ import { checkOrigin } from "./auth/middleware.js";
 import { authRouter, meRouter } from "./routes/auth.js";
 import { workspacesRouter } from "./routes/workspaces.js";
 import { teamRouter, invitesRouter } from "./routes/team.js";
+import { conversationsRouter } from "./routes/conversations.js";
+import { db, newId } from "./db/client.js";
+import { contacts, conversations, messages } from "./db/schema.js";
+import { eq, lt, and } from "drizzle-orm";
 
 export const app = express();
 export const httpServer = http.createServer(app);
@@ -66,6 +70,162 @@ app.use("/api/workspaces", workspacesRouter);
 app.use("/api/team", teamRouter);
 app.use("/api/invites", invitesRouter);
 
+// Conversations routes
+app.use("/api/conversations", conversationsRouter);
+
+// Dev seed route — only mounted when DEMO_MODE is true
+if (env.DEMO_MODE) {
+  app.post("/api/dev/seed", async (req, res) => {
+    try {
+      const wsId = req.header("X-Workspace-Id");
+      if (!wsId) {
+        return void res.status(400).json({ error: "X-Workspace-Id header required" });
+      }
+
+      // Create a demo contact
+      const contactId = newId();
+      await db.insert(contacts).values({
+        id: contactId,
+        workspaceId: wsId,
+        email: `demo-contact-${Date.now()}@example.com`,
+        name: "Demo Contact",
+        lastSeenAt: new Date(),
+      });
+
+      // Conversation 1: open chat conversation with a few messages
+      const conv1Id = newId();
+      await db.insert(conversations).values({
+        id: conv1Id,
+        workspaceId: wsId,
+        contactId,
+        channel: "chat",
+        status: "open",
+        lastMessageAt: new Date(),
+      });
+      await db.insert(messages).values([
+        {
+          id: newId(),
+          conversationId: conv1Id,
+          workspaceId: wsId,
+          senderType: "contact",
+          body: "Hello! I need help with my account.",
+          createdAt: new Date(Date.now() - 10 * 60 * 1000),
+        },
+        {
+          id: newId(),
+          conversationId: conv1Id,
+          workspaceId: wsId,
+          senderType: "agent",
+          body: "Hi there! I'd be happy to help. What seems to be the issue?",
+          createdAt: new Date(Date.now() - 9 * 60 * 1000),
+        },
+        {
+          id: newId(),
+          conversationId: conv1Id,
+          workspaceId: wsId,
+          senderType: "contact",
+          body: "I can't log in to my account.",
+          createdAt: new Date(Date.now() - 8 * 60 * 1000),
+        },
+      ]);
+
+      // Conversation 2: snoozed email conversation
+      const snoozeUntil = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+      const conv2Id = newId();
+      await db.insert(conversations).values({
+        id: conv2Id,
+        workspaceId: wsId,
+        contactId,
+        channel: "email",
+        status: "snoozed",
+        subject: "Billing question",
+        snoozedUntil: snoozeUntil,
+        lastMessageAt: new Date(Date.now() - 30 * 60 * 1000),
+      });
+      await db.insert(messages).values([
+        {
+          id: newId(),
+          conversationId: conv2Id,
+          workspaceId: wsId,
+          senderType: "contact",
+          body: "I have a question about my latest invoice.",
+          emailMessageId: `msg-${Date.now()}@example.com`,
+          createdAt: new Date(Date.now() - 35 * 60 * 1000),
+        },
+        {
+          id: newId(),
+          conversationId: conv2Id,
+          workspaceId: wsId,
+          senderType: "agent",
+          body: "Thanks for reaching out! I'll look into this and get back to you shortly.",
+          createdAt: new Date(Date.now() - 30 * 60 * 1000),
+        },
+      ]);
+
+      // Conversation 3: resolved chat conversation
+      const conv3Id = newId();
+      await db.insert(conversations).values({
+        id: conv3Id,
+        workspaceId: wsId,
+        contactId,
+        channel: "chat",
+        status: "resolved",
+        lastMessageAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      });
+      await db.insert(messages).values([
+        {
+          id: newId(),
+          conversationId: conv3Id,
+          workspaceId: wsId,
+          senderType: "contact",
+          body: "My issue has been resolved, thank you!",
+          createdAt: new Date(Date.now() - 2.5 * 60 * 60 * 1000),
+        },
+        {
+          id: newId(),
+          conversationId: conv3Id,
+          workspaceId: wsId,
+          senderType: "agent",
+          body: "Great! Glad we could help. Have a nice day!",
+          createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+        },
+      ]);
+
+      return void res.status(201).json({
+        ok: true,
+        contactId,
+        conversations: [
+          { id: conv1Id, status: "open", channel: "chat" },
+          { id: conv2Id, status: "snoozed", channel: "email", snoozedUntil: snoozeUntil },
+          { id: conv3Id, status: "resolved", channel: "chat" },
+        ],
+      });
+    } catch (err) {
+      console.error("[seed]", err);
+      return void res.status(500).json({ error: "seed failed" });
+    }
+  });
+}
+
+// Snooze sweeper: reopen snoozed conversations whose snoozedUntil has passed
 if (process.env.VITEST === undefined) {
+  const sweeper = setInterval(async () => {
+    try {
+      const now = new Date();
+      await db
+        .update(conversations)
+        .set({ status: "open", snoozedUntil: null })
+        .where(
+          and(
+            eq(conversations.status, "snoozed"),
+            lt(conversations.snoozedUntil, now)
+          )
+        );
+    } catch (err) {
+      console.error("[snooze-sweeper]", err);
+    }
+  }, 60_000);
+  sweeper.unref();
+
   httpServer.listen(env.PORT, () => console.log(`listening :${env.PORT}`));
 }
