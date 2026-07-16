@@ -7,7 +7,7 @@
 ## 1. Goals and non-goals
 
 ### Must ship (the 7 core features)
-1. Auth + team management (email/password, invites, Admin/Agent roles, assignment)
+1. Auth + team management (email/password + Google OAuth, invites, Admin/Agent roles, assignment)
 2. Embeddable chat widget (single script tag, real-time, typing/presence/read receipts, history persistence)
 3. Email channel (inbound parse → conversations, reply from dashboard → real email, threading via Message-ID/In-Reply-To)
 4. Unified inbox (chat + email, filter by channel/assignee/status, assign/snooze/resolve)
@@ -75,7 +75,7 @@ Public KB default URL is path-based: `kb.anujchhikara.com/{workspace-slug}` (avo
 
 All tenant data carries `workspace_id`. Every query is scoped server-side from the session; client-supplied workspace IDs are never trusted.
 
-- `users` — id, email (unique), password_hash, name, created_at
+- `users` — id, email (unique), password_hash (nullable), google_id (nullable, unique), name, created_at
 - `workspaces` — id, name, slug (unique), created_at
 - `memberships` — user_id, workspace_id, role (`admin`|`agent`)
 - `invites` — id, workspace_id, email, role, token_hash, expires_at, accepted_at
@@ -93,7 +93,9 @@ Widget identity: random `visitor_token` in widget-iframe `localStorage` maps to 
 
 ## 4. Auth and security
 
-- **Passwords**: scrypt via Node `crypto.scrypt` with per-user salt.
+- **Login methods** (both end in the same session cookie — no JWTs):
+  1. **Email + password** (assignment explicitly requires it): scrypt via Node `crypto.scrypt` with per-user salt.
+  2. **Google OAuth** ("Continue with Google"): standard authorization-code flow with `state` cookie for CSRF; on callback, verify the ID token, find-or-create the user by verified email (`google_id` column on `users`, `password_hash` nullable), set the session cookie, redirect to the app. Client ID/secret provided via env vars.
 - **Sessions**: opaque 256-bit random tokens, stored **hashed** in `sessions`, delivered as `HttpOnly; Secure; SameSite=Lax; Domain=.anujchhikara.com` cookie, 7-day expiry, sliding renewal.
 - **CSRF**: SameSite=Lax + Origin/Referer check middleware on all mutating routes (JSON API, no form posts).
 - **CORS**: API allows exactly `https://app.anujchhikara.com` with credentials; widget/public endpoints are open but unauthenticated-by-design.
@@ -197,7 +199,7 @@ Three-pane layout: conversation list (filters: channel, status, assignee incl. "
 | # | Milestone | Est |
 |---|---|---|
 | 0 | Azure + SendGrid + Vercel accounts, DNS records, scaffold, hello-world live on real domains | 1.5h |
-| 1 | Auth (signup/login/sessions), workspace create, invites, roles | 2.5h |
+| 1 | Auth (signup/login/sessions + Google OAuth), workspace create, invites, roles | 2.5h |
 | 2 | Conversations/messages/contacts model + REST + inbox UI with filters/assign/snooze/resolve | 3h |
 | 3 | Socket.io layer + agent-side live chat in dashboard | 2.5h |
 | 4 | Widget (loader, iframe UI, history, typing/presence/read) + demo page | 3h |
