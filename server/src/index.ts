@@ -4,7 +4,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { env } from "./env.js";
 import { checkOrigin } from "./auth/middleware.js";
-import { authRouter } from "./routes/auth.js";
+import { authRouter, meRouter } from "./routes/auth.js";
 
 export const app = express();
 export const httpServer = http.createServer(app);
@@ -39,6 +39,7 @@ app.use("/api", checkOrigin);
 
 // Auth routes
 app.use("/api/auth", authRouter);
+app.use("/api", meRouter); // GET /api/me
 
 if (process.env.VITEST === undefined) {
   httpServer.listen(env.PORT, () => console.log(`listening :${env.PORT}`));

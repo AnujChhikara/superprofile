@@ -43,7 +43,7 @@ describe("auth routes (integration)", () => {
   });
 
   it("GET /api/me without cookie → 401", async () => {
-    const res = await request(app).get("/api/auth/me");
+    const res = await request(app).get("/api/me");
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("unauthenticated");
   });
@@ -104,12 +104,11 @@ describe("auth routes (integration)", () => {
     expect(afterDestroy).toBeNull();
   });
 
-  it("GET /api/auth/me with valid session cookie → 200 with user", async () => {
-    const { getSessionUser } = await import("../src/auth/session.js");
+  it("GET /api/me with valid session cookie → 200 with user", async () => {
     const raw = await createSession(TEST_USER_ID);
 
     const res = await request(app)
-      .get("/api/auth/me")
+      .get("/api/me")
       .set("Cookie", `sid=${raw}`);
     expect(res.status).toBe(200);
     expect(res.body.user).toBeDefined();

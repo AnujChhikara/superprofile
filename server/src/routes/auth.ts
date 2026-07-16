@@ -133,8 +133,9 @@ authRouter.post("/logout", async (req, res) => {
   res.json({ ok: true });
 });
 
-// GET /api/me
-authRouter.get("/me", requireAuth, async (req, res) => {
+// GET /api/me — mounted at /api (not under /api/auth) per interface spec
+export const meRouter = Router();
+meRouter.get("/me", requireAuth, async (req, res) => {
   const user = req.user!;
 
   const membershipRows = await db
