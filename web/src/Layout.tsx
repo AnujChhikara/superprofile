@@ -1,211 +1,146 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "./auth.js";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import {
+  Inbox,
+  BookOpen,
+  Settings,
+  Globe,
+  MessageSquare,
+  ChevronDown,
+} from "lucide-react";
 
-export default function Layout() {
+const navItems = [
+  { href: "/inbox", icon: Inbox, label: "Inbox" },
+  { href: "/knowledge", icon: BookOpen, label: "Knowledge Base" },
+  { href: "/settings/team", icon: Settings, label: "Team" },
+  { href: "/settings/domains", icon: Globe, label: "Domains" },
+  { href: "/settings/canned", icon: MessageSquare, label: "Canned" },
+];
+
+function AppSidebar() {
   const { user, workspaces, activeWorkspace, setActiveWorkspace } = useAuth();
 
   return (
-    <div style={styles.root}>
-      {/* Sidebar */}
-      <aside style={styles.sidebar}>
-        {/* Logo */}
-        <div style={styles.logo}>
-          <span style={styles.logoIcon}>💬</span>
-          <span style={styles.logoName}>SuperProfile</span>
+    <Sidebar>
+      <SidebarHeader>
+        <div className="flex items-center gap-2 px-2 py-2">
+          <span className="text-2xl">💬</span>
+          <span className="text-lg font-bold">SuperProfile</span>
         </div>
+      </SidebarHeader>
 
-        {/* Workspace selector */}
-        {workspaces.length > 0 && (
-          <div style={styles.workspaceSection}>
-            <select
-              value={activeWorkspace?.id ?? ""}
-              onChange={(e) => {
-                const ws = workspaces.find((w) => w.id === e.target.value);
-                if (ws) setActiveWorkspace(ws);
-              }}
-              style={styles.workspaceSelect}
-            >
+      {workspaces.length > 0 && (
+        <div className="px-2 pb-4">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm">
+                <span className="truncate">{activeWorkspace?.name}</span>
+                <ChevronDown className="size-4 shrink-0 opacity-50" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
+              <DropdownMenuSeparator />
               {workspaces.map((ws) => (
-                <option key={ws.id} value={ws.id}>
+                <DropdownMenuItem
+                  key={ws.id}
+                  onClick={() => setActiveWorkspace(ws)}
+                  className={
+                    activeWorkspace?.id === ws.id ? "bg-accent" : undefined
+                  }
+                >
                   {ws.name}
-                </option>
+                </DropdownMenuItem>
               ))}
-            </select>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
+      <Separator />
+
+      <SidebarContent>
+        <SidebarMenu>
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to={item.href}
+                    end={item.href === "/inbox"}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 ${isActive ? "bg-sidebar-accent" : ""}`
+                    }
+                  >
+                    <Icon className="size-4" />
+                    <span>{item.label}</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
+        </SidebarMenu>
+      </SidebarContent>
+
+      <Separator />
+
+      <SidebarFooter>
+        {user && (
+          <div className="flex items-center gap-3">
+            <Avatar className="size-8">
+              <AvatarImage src={user.avatarUrl || ""} alt={user.name} />
+              <AvatarFallback>
+                {user.name?.charAt(0)?.toUpperCase() ?? "?"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold">{user.name}</div>
+              <div className="truncate text-xs text-muted-foreground">
+                {user.email}
+              </div>
+            </div>
           </div>
         )}
-
-        {/* Nav */}
-        <nav style={styles.nav}>
-          <NavLink to="/inbox" style={navStyle} end>
-            <span style={styles.navIcon}>📥</span>
-            Inbox
-          </NavLink>
-          <NavLink to="/knowledge" style={navStyle}>
-            <span style={styles.navIcon}>📚</span>
-            Knowledge Base
-          </NavLink>
-          <NavLink to="/settings/team" style={navStyle}>
-            <span style={styles.navIcon}>⚙️</span>
-            Settings
-          </NavLink>
-          <NavLink to="/settings/domains" style={navStyle}>
-            <span style={styles.navIcon}>🌐</span>
-            Domains
-          </NavLink>
-          <NavLink to="/settings/canned" style={navStyle}>
-            <span style={styles.navIcon}>💬</span>
-            Canned
-          </NavLink>
-        </nav>
-
-        {/* User info at bottom */}
-        <div style={styles.userSection}>
-          {user?.avatarUrl ? (
-            <img src={user.avatarUrl} alt={user.name} style={styles.avatar} />
-          ) : (
-            <div style={styles.avatarPlaceholder}>
-              {user?.name?.charAt(0)?.toUpperCase() ?? "?"}
-            </div>
-          )}
-          <div style={styles.userInfo}>
-            <div style={styles.userName}>{user?.name}</div>
-            <div style={styles.userEmail}>{user?.email}</div>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <main style={styles.main}>
-        <Outlet />
-      </main>
-    </div>
+      </SidebarFooter>
+    </Sidebar>
   );
 }
 
-function navStyle({ isActive }: { isActive: boolean }): React.CSSProperties {
-  return {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "9px 14px",
-    borderRadius: 7,
-    fontSize: 14,
-    fontWeight: isActive ? 600 : 400,
-    color: isActive ? "#4f46e5" : "#374151",
-    background: isActive ? "#eef2ff" : "transparent",
-    textDecoration: "none",
-    transition: "background 0.12s, color 0.12s",
-  };
+export default function Layout() {
+  return (
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center border-b">
+          <SidebarTrigger className="ml-4" />
+        </header>
+        <main className="flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
+  );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  root: {
-    display: "flex",
-    height: "100vh",
-    overflow: "hidden",
-    fontFamily: "system-ui, -apple-system, sans-serif",
-  },
-  sidebar: {
-    width: 240,
-    flexShrink: 0,
-    borderRight: "1px solid #e5e7eb",
-    display: "flex",
-    flexDirection: "column",
-    background: "#fafafa",
-    padding: "16px 12px",
-    boxSizing: "border-box",
-    overflow: "auto",
-  },
-  logo: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "4px 6px 20px",
-    borderBottom: "1px solid #e5e7eb",
-    marginBottom: 16,
-  },
-  logoIcon: {
-    fontSize: 22,
-  },
-  logoName: {
-    fontSize: 16,
-    fontWeight: 700,
-    color: "#111827",
-    letterSpacing: "-0.3px",
-  },
-  workspaceSection: {
-    marginBottom: 16,
-  },
-  workspaceSelect: {
-    width: "100%",
-    padding: "8px 10px",
-    border: "1px solid #e5e7eb",
-    borderRadius: 7,
-    fontSize: 13,
-    color: "#374151",
-    background: "#fff",
-    cursor: "pointer",
-    boxSizing: "border-box",
-  },
-  nav: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 2,
-    flex: 1,
-  },
-  navIcon: {
-    fontSize: 16,
-    flexShrink: 0,
-  },
-  userSection: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTop: "1px solid #e5e7eb",
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: "50%",
-    objectFit: "cover",
-    flexShrink: 0,
-  },
-  avatarPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: "50%",
-    background: "#e0e7ff",
-    color: "#4f46e5",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 13,
-    fontWeight: 700,
-    flexShrink: 0,
-  },
-  userInfo: {
-    overflow: "hidden",
-  },
-  userName: {
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#111827",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  userEmail: {
-    fontSize: 11,
-    color: "#9ca3af",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  main: {
-    flex: 1,
-    overflow: "auto",
-    background: "#f9fafb",
-  },
-};
