@@ -40,6 +40,6 @@ describe("draft prompt", () => {
       kbArticles: [],
       agentName: "Sam",
     });
-    expect(user).toContain("no relevant articles");
+    expect(user).toContain("No relevant articles");
   });
 });
