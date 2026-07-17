@@ -49,18 +49,57 @@ function useInboxRealtime(workspaceId: string | null) {
     socketRef.current = socket;
 
     const onMessageNew = (p: { conversationId: string; message: Message }) => {
+      // Update open message thread instantly
       queryClient.setQueryData<Message[]>(
         ["messages", p.conversationId],
         (old) => {
-          if (!old) return old; // thread not open/loaded — list refetch covers it
-          if (old.some((m) => m.id === p.message.id)) return old; // dedupe
+          if (!old) return old;
+          if (old.some((m) => m.id === p.message.id)) return old;
           return [...old, p.message];
         }
       );
+      // Immediately patch every conversation list in cache (all/chat/email tabs)
+      // so the row moves to top and shows the new preview text without waiting
+      // for a network round-trip.
+      queryClient.setQueriesData<Conversation[]>(
+        { queryKey: ["conversations"] },
+        (old) => {
+          if (!old) return old;
+          const updated = old.map((c) =>
+            c.id === p.conversationId
+              ? {
+                  ...c,
+                  lastMessageAt: p.message.createdAt,
+                  lastMessageBody: p.message.body,
+                  unreadCount:
+                    p.message.senderType === "contact"
+                      ? (c.unreadCount ?? 0) + 1
+                      : c.unreadCount,
+                }
+              : c
+          );
+          return [...updated].sort(
+            (a, b) =>
+              new Date(b.lastMessageAt).getTime() -
+              new Date(a.lastMessageAt).getTime()
+          );
+        }
+      );
+      // Also invalidate so brand-new conversations (not yet in cache) get fetched
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     };
 
     const onConvUpdated = (p: { conversation: Conversation }) => {
+      // Patch the conversation row in all list caches immediately
+      queryClient.setQueriesData<Conversation[]>(
+        { queryKey: ["conversations"] },
+        (old) => {
+          if (!old) return old;
+          return old.map((c) =>
+            c.id === p.conversation.id ? { ...c, ...p.conversation } : c
+          );
+        }
+      );
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       queryClient.invalidateQueries({
         queryKey: ["conversation", p.conversation.id],

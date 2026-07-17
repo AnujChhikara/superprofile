@@ -14,7 +14,7 @@ import { requireAuth } from "../auth/middleware.js";
 
 // Fixed identifiers so the seed is idempotent and /demo can find the workspace.
 const DEMO_WS = "demo-acme-ws";
-export const DEMO_PUBLIC_KEY = "pk_acmecloud_demo_00000000000000000";
+export const DEMO_PUBLIC_KEY = "pk_rapidco_demo_000000000000000000";
 
 export const devRouter = Router();
 
@@ -31,8 +31,8 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
     if (!existing) {
       await db.insert(workspaces).values({
         id: DEMO_WS,
-        name: "Acme Cloud",
-        slug: "acme",
+        name: "Rapid Commerce",
+        slug: "rapid_commerce",
         publicKey: DEMO_PUBLIC_KEY,
       });
     }
@@ -83,8 +83,8 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
       status: "published" as const,
     });
     await db.insert(kbArticles).values([
-      article("Deploying your first app", "deploying-your-first-app", "Run acme deploy in your project root to ship to the edge in seconds.", catGetting),
-      article("Connecting a custom domain", "connecting-a-custom-domain", "Add a CNAME record pointing to your Acme project and verify ownership.", catGetting),
+      article("Deploying your first app", "deploying-your-first-app", "Run rc deploy in your project root to ship to production in seconds.", catGetting),
+      article("Connecting a custom domain", "connecting-a-custom-domain", "Add a CNAME record pointing to your Rapid Commerce storefront and verify ownership.", catGetting),
       article("Resetting your password", "resetting-your-password", "Click Forgot password on the login screen and follow the emailed link.", catGetting),
       article("Understanding your invoice", "understanding-your-invoice", "Invoices are issued monthly and itemize bandwidth and build minutes.", catBilling),
       article("Upgrading your plan", "upgrading-your-plan", "Go to Settings then Billing and choose the Pro or Enterprise plan.", catBilling),

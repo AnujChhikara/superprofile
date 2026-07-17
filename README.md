@@ -13,7 +13,7 @@ A production-ready, multi-tenant customer communication platform — live chat, 
 | **Demo page (widget installed)** | https://api.anujchhikara.com/demo |
 | **Public Knowledge Base** | https://kb.anujchhikara.com/acme |
 | **API health check** | https://api.anujchhikara.com/healthz |
-| **Inbound support email** | `acme@parse.anujchhikara.com` |
+| **Inbound support email** | `rapid_commerce@parse.anujchhikara.com` |
 
 ---
 
@@ -29,7 +29,7 @@ fetch('https://api.anujchhikara.com/api/dev/seed', {
   method: 'POST', credentials: 'include'
 }).then(r => r.json()).then(console.log)
 ```
-3. Switch to the **Acme Cloud** workspace in the sidebar (top dropdown)
+3. Switch to the **Rapid Commerce** workspace in the sidebar (top dropdown)
 
 ### Step 2 — Open these tabs before presenting
 | Tab | URL | Purpose |
@@ -47,7 +47,7 @@ fetch('https://api.anujchhikara.com/api/dev/seed', {
 - Type in Tab 1 compose → Tab 2 shows "typing…" indicator
 
 **Email channel (Gmail → Tab 1)**
-- Send email to `acme@parse.anujchhikara.com` from Gmail
+- Send email to `rapid_commerce@parse.anujchhikara.com` from Gmail
 - Tab 1 → new Email conversation appears in seconds
 - Reply from inbox → customer gets reply **from** `acme_corp@parse.anujchhikara.com`
 - Reply to that email → threads back into the same conversation
@@ -76,7 +76,7 @@ fetch('https://api.anujchhikara.com/api/dev/simulate-inbound', {
   method: 'POST', credentials: 'include',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    to: 'acme@parse.anujchhikara.com',
+    to: 'rapid_commerce@parse.anujchhikara.com',
     from: 'customer@gmail.com',
     subject: 'Billing question',
     text: 'Hi, I was charged twice this month. Can you help?'
@@ -90,7 +90,7 @@ fetch('https://api.anujchhikara.com/api/dev/simulate-inbound', {
 
 ### 1 — Sign up & team management
 1. Go to `https://app.anujchhikara.com` → **Continue with Google**
-2. You'll land on Onboarding — create a workspace (e.g. "Acme Cloud")
+2. You'll land on Onboarding — create a workspace (e.g. "Rapid Commerce")
 3. Go to **Settings → Team** → invite a second Google account via email
 4. The invitee receives a real email from `support@anujchhikara.com` with an accept link
 5. Accept the invite in the second account → both accounts now share the workspace
@@ -98,7 +98,7 @@ fetch('https://api.anujchhikara.com/api/dev/simulate-inbound', {
 
 ### 2 — Live chat widget
 1. Open `https://api.anujchhikara.com/demo` in one browser tab — this is a fake product page with the widget installed
-2. Keep `https://app.anujchhikara.com/inbox` open in another tab (switch workspace to **Acme Cloud**)
+2. Keep `https://app.anujchhikara.com/inbox` open in another tab (switch workspace to **Rapid Commerce**)
 3. Click the **indigo chat bubble** (bottom-right of the demo page) → type a message → send
 4. The message appears in the agent inbox **in real-time** (no refresh)
 5. Reply from the agent dashboard — the reply appears in the widget instantly
@@ -107,9 +107,9 @@ fetch('https://api.anujchhikara.com/api/dev/simulate-inbound', {
 8. The widget header shows **"We're online"** (green dot) when an agent is logged in, **"We'll reply by email"** when not
 
 ### 3 — Email channel
-Send a real email to **`acme@parse.anujchhikara.com`** from any Gmail account.
+Send a real email to **`rapid_commerce@parse.anujchhikara.com`** from any Gmail account.
 
-- It appears in the Acme Cloud inbox within seconds as an **Email** conversation
+- It appears in the Rapid Commerce inbox within seconds as an **Email** conversation
 - Reply from the agent dashboard → the customer receives the reply **from** `acme_corp@parse.anujchhikara.com` (the workspace address, not a platform address)
 - Reply to that email again → it threads back into the **same conversation** (Message-ID / In-Reply-To / References headers are preserved)
 
@@ -119,7 +119,7 @@ fetch('https://api.anujchhikara.com/api/dev/simulate-inbound', {
   method: 'POST', credentials: 'include',
   headers: {'Content-Type':'application/json'},
   body: JSON.stringify({
-    to: 'acme@parse.anujchhikara.com',
+    to: 'rapid_commerce@parse.anujchhikara.com',
     from: 'tester@gmail.com',
     subject: 'Billing question',
     text: 'Hi, I was charged twice this month. Can you help?'
@@ -159,7 +159,7 @@ Open DevTools on the dashboard (`https://app.anujchhikara.com`) and run:
 fetch('https://api.anujchhikara.com/api/dev/seed', {method:'POST',credentials:'include'})
   .then(r=>r.json()).then(console.log)
 ```
-This creates the **Acme Cloud** workspace with demo conversations, KB articles, and seeded team members. Then switch to the Acme Cloud workspace in the sidebar.
+This creates the **Rapid Commerce** workspace with demo conversations, KB articles, and seeded team members. Then switch to the Rapid Commerce workspace in the sidebar.
 
 ---
 
@@ -247,7 +247,7 @@ Single Express process holds REST, Socket.io, SSR KB, and widget assets. All ten
 ## Email threading design
 
 **Inbound** (SendGrid → `POST /webhooks/sendgrid-inbound/:secret`):
-1. Resolve workspace from recipient slug (`acme@parse.anujchhikara.com` → `"acme"`)
+1. Resolve workspace from recipient slug (`rapid_commerce@parse.anujchhikara.com` → `"acme"`)
 2. Find or create contact by from-address
 3. `resolveThread` checks `In-Reply-To` / `References` against stored `emailMessageId`s to attach to an existing conversation (and reopen it if resolved) — otherwise creates a new one
 
@@ -320,7 +320,7 @@ OPENAI_API_KEY=...            # omit for graceful AI degradation
 ```js
 fetch('http://localhost:3000/api/dev/seed', {method:'POST',credentials:'include'})
   .then(r=>r.json()).then(console.log)
-// → switch to "Acme Cloud" workspace in the sidebar
+// → switch to "Rapid Commerce" workspace in the sidebar
 // → open http://localhost:3000/demo to test the widget
 ```
 
