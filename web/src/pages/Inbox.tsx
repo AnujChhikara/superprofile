@@ -3,6 +3,32 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api.js";
 import { useAuth } from "../auth.js";
 import { getSocket } from "../lib/socket.js";
+import { cn } from "@/lib/utils";
+import {
+  Button,
+  Select,
+  SelectContent,
+  SelectItem,
+  Avatar,
+  AvatarFallback,
+  Badge,
+  Card,
+  CardContent,
+  ScrollArea,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  Textarea,
+  Separator,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui";
+import { MessageCircle, Mail, ChevronDown, Zap } from "lucide-react";
 
 // ------------------------------------------------------------------
 // Realtime: subscribe the socket to the query cache. Returns per-conversation
@@ -181,10 +207,6 @@ function formatTime(iso: string) {
   return d.toLocaleDateString();
 }
 
-function channelIcon(channel: "chat" | "email") {
-  return channel === "chat" ? "💬" : "✉️";
-}
-
 // ------------------------------------------------------------------
 // Left pane: conversation list
 // ------------------------------------------------------------------
@@ -218,75 +240,85 @@ function ConversationList({
 
   if (isLoading) {
     return (
-      <div style={styles.listEmpty}>
-        <span style={{ color: "#9ca3af", fontSize: 13 }}>Loading...</span>
-      </div>
+      <ScrollArea className="flex-1">
+        <div className="flex flex-col items-center justify-center p-6">
+          <span className="text-sm text-muted-foreground">Loading...</span>
+        </div>
+      </ScrollArea>
     );
   }
 
   if (conversations.length === 0) {
     return (
-      <div style={styles.listEmpty}>
-        <span style={{ color: "#9ca3af", fontSize: 13 }}>No conversations</span>
-      </div>
+      <ScrollArea className="flex-1">
+        <div className="flex flex-col items-center justify-center p-6">
+          <span className="text-sm text-muted-foreground">No conversations</span>
+        </div>
+      </ScrollArea>
     );
   }
 
   return (
-    <div style={styles.list}>
-      {conversations.map((conv) => (
-        <div
-          key={conv.id}
-          onClick={() => onSelect(conv.id)}
-          style={{
-            ...styles.convItem,
-            background: selectedId === conv.id ? "#eef2ff" : "transparent",
-            borderLeft:
-              selectedId === conv.id
-                ? "3px solid #4f46e5"
-                : "3px solid transparent",
-          }}
-        >
-          <div style={styles.convRow}>
-            <span style={styles.chanIcon}>{channelIcon(conv.channel)}</span>
-            <span style={styles.convName}>
-              {conv.contact?.name ?? conv.contact?.email ?? "Unknown"}
-            </span>
-            {conv.unreadCount > 0 && (
-              <span style={styles.unreadDot}>{conv.unreadCount}</span>
+    <ScrollArea className="flex-1">
+      <div className="flex flex-col">
+        {conversations.map((conv) => (
+          <button
+            key={conv.id}
+            onClick={() => onSelect(conv.id)}
+            className={cn(
+              "flex flex-col gap-1 border-b px-3.5 py-3 text-left transition-colors hover:bg-muted",
+              selectedId === conv.id && "bg-muted border-l-2 border-l-primary"
             )}
-          </div>
-          <div style={styles.convPreview}>
-            {conv.lastMessageBody
-              ? conv.lastMessageBody.slice(0, 60) +
-                (conv.lastMessageBody.length > 60 ? "…" : "")
-              : "No messages yet"}
-          </div>
-          <div style={styles.convMeta}>
-            <span
-              style={{
-                ...styles.statusBadge,
-                background:
+          >
+            {/* Row: channel icon, name, unread badge */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs flex-shrink-0">
+                {conv.channel === "chat" ? (
+                  <MessageCircle className="size-3.5" />
+                ) : (
+                  <Mail className="size-3.5" />
+                )}
+              </span>
+              <span className="flex-1 truncate text-sm font-semibold text-foreground">
+                {conv.contact?.name ?? conv.contact?.email ?? "Unknown"}
+              </span>
+              {conv.unreadCount > 0 && (
+                <Badge variant="default" className="flex-shrink-0 text-xs">
+                  {conv.unreadCount}
+                </Badge>
+              )}
+            </div>
+
+            {/* Preview: truncated last message */}
+            <div className="truncate text-xs text-muted-foreground">
+              {conv.lastMessageBody
+                ? conv.lastMessageBody.slice(0, 60) +
+                  (conv.lastMessageBody.length > 60 ? "…" : "")
+                : "No messages yet"}
+            </div>
+
+            {/* Meta: status badge, time */}
+            <div className="flex items-center justify-between gap-2">
+              <Badge
+                variant={
                   conv.status === "open"
-                    ? "#dcfce7"
+                    ? "default"
                     : conv.status === "snoozed"
-                    ? "#fef9c3"
-                    : "#f3f4f6",
-                color:
-                  conv.status === "open"
-                    ? "#166534"
-                    : conv.status === "snoozed"
-                    ? "#854d0e"
-                    : "#6b7280",
-              }}
-            >
-              {conv.status}
-            </span>
-            <span style={styles.convTime}>{formatTime(conv.lastMessageAt)}</span>
-          </div>
-        </div>
-      ))}
-    </div>
+                    ? "secondary"
+                    : "outline"
+                }
+                className="text-xs"
+              >
+                {conv.status}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                {formatTime(conv.lastMessageAt)}
+              </span>
+            </div>
+          </button>
+        ))}
+      </div>
+    </ScrollArea>
   );
 }
 
@@ -412,81 +444,85 @@ function ThreadPane({
 
   // The highest agent-message seq the contact has read → renders ✓✓.
   return (
-    <div style={styles.threadPane}>
-      <div style={styles.thread}>
-        {messages.map((msg) => (
-          <MessageBubble
-            key={msg.id}
-            message={msg}
-            userId={userId}
-            readByContact={
-              msg.senderType === "agent" && msg.seq <= contactReadSeq
-            }
-          />
-        ))}
-        {contactTyping && (
-          <div style={{ ...styles.bubbleWrap, justifyContent: "flex-start" }}>
-            <div
-              style={{
-                ...styles.bubble,
-                background: "#f3f4f6",
-                color: "#6b7280",
-                borderRadius: "16px 16px 16px 4px",
-                fontSize: 13,
-                fontStyle: "italic",
-              }}
-            >
-              typing…
+    <div className="flex flex-col h-full overflow-hidden">
+      <ScrollArea className="flex-1">
+        <div className="flex flex-col gap-3 px-6 py-5">
+          {messages.map((msg) => (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              userId={userId}
+              readByContact={
+                msg.senderType === "agent" && msg.seq <= contactReadSeq
+              }
+            />
+          ))}
+          {contactTyping && (
+            <div className="flex justify-start">
+              <div className="bg-muted text-muted-foreground rounded-2xl rounded-tl-none px-3.5 py-2.5 text-sm italic">
+                typing…
+              </div>
             </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+      </ScrollArea>
 
       {/* Canned response picker (type "/" to open) */}
       {draft.startsWith("/") && cannedMatches.length > 0 && (
-        <div style={styles.cannedMenu}>
+        <div className="border-t max-h-[180px] overflow-y-auto bg-background">
           {cannedMatches.slice(0, 6).map((c) => (
             <button
               key={c.id}
-              style={styles.cannedItem}
               onClick={() => setDraft(c.body)}
+              className="flex flex-col w-full text-left gap-0.5 px-4 py-2 border-b bg-background hover:bg-muted transition-colors"
             >
-              <span style={styles.cannedTitle}>{c.title}</span>
-              <span style={styles.cannedPreview}>{c.body.slice(0, 60)}</span>
+              <span className="text-sm font-semibold text-primary">
+                {c.title}
+              </span>
+              <span className="text-xs text-muted-foreground truncate">
+                {c.body.slice(0, 60)}
+              </span>
             </button>
           ))}
         </div>
       )}
 
-      <div style={styles.composer}>
-        <textarea
+      <div className="border-t px-4 py-3 flex gap-2 bg-background">
+        <Textarea
           value={draft}
           onChange={handleDraftChange}
           onKeyDown={handleKeyDown}
           placeholder="Type a reply… ( / for canned, Enter to send )"
-          style={styles.composerTextarea}
           disabled={sendMutation.isPending}
+          className="min-h-[72px] flex-1 resize-none"
         />
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <button
-            onClick={() => draftMutation.mutate()}
-            disabled={draftMutation.isPending}
-            title="AI draft grounded in the summary + knowledge base"
-            style={styles.draftBtn}
-          >
-            {draftMutation.isPending ? "…" : "✨ Draft"}
-          </button>
-          <button
+        <div className="flex flex-col gap-1.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => draftMutation.mutate()}
+                disabled={draftMutation.isPending}
+                variant="outline"
+                size="sm"
+                className="text-xs"
+              >
+                {draftMutation.isPending ? "…" : <Zap className="size-3.5 mr-1" />}
+                {!draftMutation.isPending && "Draft"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              AI draft grounded in the summary + knowledge base
+            </TooltipContent>
+          </Tooltip>
+          <Button
             onClick={() => draft.trim() && sendMutation.mutate(draft.trim())}
             disabled={!draft.trim() || sendMutation.isPending}
-            style={{
-              ...styles.sendBtn,
-              opacity: !draft.trim() || sendMutation.isPending ? 0.5 : 1,
-            }}
+            size="sm"
+            className="text-xs"
           >
             Send
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -509,46 +545,32 @@ function MessageBubble({
 
   if (isSystem) {
     return (
-      <div style={styles.systemMsg}>
-        {/* Use textContent approach - React renders text safely by default */}
-        <span style={styles.systemMsgText}>{message.body}</span>
+      <div className="flex justify-center py-1">
+        <Badge variant="secondary" className="text-xs">
+          {message.body}
+        </Badge>
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        ...styles.bubbleWrap,
-        justifyContent: isAgent ? "flex-end" : "flex-start",
-      }}
-    >
+    <div className={cn("flex", isAgent ? "justify-end" : "justify-start")}>
       <div
-        style={{
-          ...styles.bubble,
-          background: isAgent ? "#4f46e5" : "#f3f4f6",
-          color: isAgent ? "#fff" : "#111827",
-          borderRadius: isAgent
-            ? "16px 16px 4px 16px"
-            : "16px 16px 16px 4px",
-          maxWidth: "70%",
-        }}
+        className={cn(
+          "flex flex-col max-w-[70%] rounded-2xl px-3.5 py-2.5 whitespace-pre-wrap break-words",
+          isAgent
+            ? "bg-primary text-primary-foreground rounded-tr-none"
+            : "bg-muted text-foreground rounded-tl-none"
+        )}
       >
-        {/* React's default text rendering escapes content — never dangerouslySetInnerHTML */}
-        <p style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-          {message.body}
-        </p>
+        <p className="m-0">{message.body}</p>
         <span
-          style={{
-            fontSize: 10,
-            opacity: 0.6,
-            marginTop: 4,
-            display: "block",
-          }}
+          className="text-xs opacity-60 mt-1 block"
+          title={readByContact ? "Read" : "Sent"}
         >
           {formatTime(message.createdAt)}
           {isOwnAgent && (
-            <span style={{ marginLeft: 6 }} title={readByContact ? "Read" : "Sent"}>
+            <span className="ml-1">
               {readByContact ? "✓✓" : "✓"}
             </span>
           )}
@@ -589,40 +611,54 @@ function SummaryCard({ conversationId }: { conversationId: string }) {
   });
 
   return (
-    <div style={styles.section}>
-      <div style={styles.sectionLabel}>
-        AI Summary
+    <div className="px-4 pb-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          AI Summary
+        </span>
         {data?.summary && data.stale && (
-          <span style={styles.staleBadge}>may be out of date</span>
+          <Badge variant="secondary" className="text-xs">
+            may be out of date
+          </Badge>
         )}
       </div>
       {data?.summary ? (
         <>
-          <div style={styles.summaryBody}>{data.summary.body}</div>
-          <div style={styles.summaryMeta}>
-            updated {formatTime(data.summary.updatedAt)}
-            <button
-              style={styles.regenBtn}
+          <Card className="mb-2">
+            <CardContent className="pt-3 text-sm text-foreground whitespace-pre-wrap">
+              {data.summary.body}
+            </CardContent>
+          </Card>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>updated {formatTime(data.summary.updatedAt)}</span>
+            <Button
               onClick={() => regenerate.mutate()}
               disabled={regenerate.isPending}
+              variant="link"
+              size="sm"
+              className="text-xs p-0 h-auto"
             >
               {regenerate.isPending ? "…" : "Regenerate"}
-            </button>
+            </Button>
           </div>
         </>
       ) : (
-        <div style={{ fontSize: 12, color: "#9ca3af" }}>
-          {(data?.messageCount ?? 0) < 6
-            ? "Summary appears after a few messages."
-            : "No summary yet."}
+        <div className="text-xs text-muted-foreground space-y-2">
+          <p>
+            {(data?.messageCount ?? 0) < 6
+              ? "Summary appears after a few messages."
+              : "No summary yet."}
+          </p>
           {(data?.messageCount ?? 0) >= 6 && (
-            <button
-              style={styles.regenBtn}
+            <Button
               onClick={() => regenerate.mutate()}
               disabled={regenerate.isPending}
+              variant="outline"
+              size="sm"
+              className="text-xs w-full"
             >
               {regenerate.isPending ? "…" : "Generate"}
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -676,86 +712,92 @@ function DetailPane({ conversationId, onUpdated }: DetailPaneProps) {
 
   if (!conv) {
     return (
-      <div style={styles.detailPane}>
-        <div style={{ padding: 24, color: "#9ca3af", fontSize: 13 }}>
+      <ScrollArea className="flex-1">
+        <div className="p-6 text-muted-foreground text-sm">
           Loading...
         </div>
-      </div>
+      </ScrollArea>
     );
   }
 
   return (
-    <div style={styles.detailPane}>
-      {/* Contact card */}
-      <div style={styles.contactCard}>
-        <div style={styles.contactAvatar}>
-          {(conv.contact?.name ?? conv.contact?.email ?? "?")
-            .charAt(0)
-            .toUpperCase()}
-        </div>
-        <div>
-          <div style={styles.contactName}>
-            {conv.contact?.name ?? "Unknown"}
+    <ScrollArea className="flex-1">
+      <div className="flex flex-col">
+        {/* Contact card */}
+        <div className="flex items-center gap-2.5 px-4 pb-4">
+          <Avatar className="size-10 flex-shrink-0">
+            <AvatarFallback className="bg-primary/10 text-primary">
+              {(conv.contact?.name ?? conv.contact?.email ?? "?")
+                .charAt(0)
+                .toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-foreground truncate">
+              {conv.contact?.name ?? "Unknown"}
+            </div>
+            {conv.contact?.email && (
+              <div className="text-xs text-muted-foreground truncate">
+                {conv.contact.email}
+              </div>
+            )}
           </div>
-          {conv.contact?.email && (
-            <div style={styles.contactEmail}>{conv.contact.email}</div>
-          )}
         </div>
-      </div>
 
-      <div style={styles.divider} />
+        <Separator className="mb-3" />
 
-      {/* AI summary */}
-      <SummaryCard conversationId={conversationId} />
+        {/* AI summary */}
+        <SummaryCard conversationId={conversationId} />
 
-      <div style={styles.divider} />
+        <Separator className="mt-2 mb-3" />
 
-      {/* Status actions */}
-      <div style={styles.section}>
-        <div style={styles.sectionLabel}>Status</div>
-        <div style={styles.actionRow}>
-          {conv.status !== "resolved" ? (
-            <button
-              onClick={() => patchMutation.mutate({ status: "resolved" })}
-              style={styles.btnPrimary}
-              disabled={patchMutation.isPending}
-            >
-              Resolve
-            </button>
-          ) : (
-            <button
-              onClick={() => patchMutation.mutate({ status: "open" })}
-              style={styles.btnSecondary}
-              disabled={patchMutation.isPending}
-            >
-              Reopen
-            </button>
-          )}
+        {/* Status actions */}
+        <div className="px-4 pb-4">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+            Status
+          </div>
+          <div className="flex gap-1.5 flex-wrap">
+            {conv.status !== "resolved" ? (
+              <Button
+                onClick={() => patchMutation.mutate({ status: "resolved" })}
+                disabled={patchMutation.isPending}
+                size="sm"
+                className="text-xs"
+              >
+                Resolve
+              </Button>
+            ) : (
+              <Button
+                onClick={() => patchMutation.mutate({ status: "open" })}
+                disabled={patchMutation.isPending}
+                variant="outline"
+                size="sm"
+                className="text-xs"
+              >
+                Reopen
+              </Button>
+            )}
 
-          {/* Snooze menu */}
-          <div style={{ position: "relative" }}>
-            <button
-              onClick={() => setSnoozeMenuOpen((v) => !v)}
-              style={styles.btnSecondary}
-            >
-              Snooze
-            </button>
-            {snoozeMenuOpen && (
-              <div style={styles.snoozeMenu}>
-                <button
-                  style={styles.snoozeItem}
-                  onClick={() => snooze(60 * 60 * 1000)}
+            {/* Snooze dropdown menu */}
+            <DropdownMenu open={snoozeMenuOpen} onOpenChange={setSnoozeMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
                 >
+                  Snooze
+                  <ChevronDown className="size-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-40">
+                <DropdownMenuItem onClick={() => snooze(60 * 60 * 1000)}>
                   1 hour
-                </button>
-                <button
-                  style={styles.snoozeItem}
-                  onClick={snoozeUntilTomorrow9am}
-                >
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={snoozeUntilTomorrow9am}>
                   Tomorrow 9am
-                </button>
-                <button
-                  style={styles.snoozeItem}
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={() => {
                     const custom = prompt(
                       "Enter snooze date/time (ISO format, e.g. 2025-01-01T09:00:00)"
@@ -770,69 +812,83 @@ function DetailPane({ conversationId, onUpdated }: DetailPaneProps) {
                   }}
                 >
                   Custom...
-                </button>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        <Separator className="mb-3" />
+
+        {/* Assignee */}
+        <div className="px-4 pb-4">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+            Assignee
+          </div>
+          <Select
+            value={conv.assigneeId ?? ""}
+            onValueChange={(value: string) =>
+              patchMutation.mutate({
+                assigneeId: value || null,
+              })
+            }
+          >
+            <SelectContent>
+              <SelectItem value="">Unassigned</SelectItem>
+              {team.map((m) => (
+                <SelectItem key={m.userId} value={m.userId}>
+                  {m.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Separator className="mb-3" />
+
+        {/* Conv info */}
+        <div className="px-4 pb-4">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+            Details
+          </div>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Channel</span>
+              <span className="text-foreground font-medium flex items-center gap-1">
+                {conv.channel === "chat" ? (
+                  <MessageCircle className="size-3" />
+                ) : (
+                  <Mail className="size-3" />
+                )}
+                {conv.channel}
+              </span>
+            </div>
+            {conv.subject && (
+              <div className="flex justify-between items-start">
+                <span className="text-muted-foreground">Subject</span>
+                <span className="text-foreground font-medium text-right max-w-[55%] break-words">
+                  {conv.subject}
+                </span>
               </div>
             )}
+            {conv.snoozedUntil && (
+              <div className="flex justify-between items-start">
+                <span className="text-muted-foreground">Snoozed until</span>
+                <span className="text-foreground font-medium text-right max-w-[55%]">
+                  {new Date(conv.snoozedUntil).toLocaleString()}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Created</span>
+              <span className="text-foreground font-medium">
+                {new Date(conv.createdAt).toLocaleDateString()}
+              </span>
+            </div>
           </div>
         </div>
       </div>
-
-      <div style={styles.divider} />
-
-      {/* Assignee */}
-      <div style={styles.section}>
-        <div style={styles.sectionLabel}>Assignee</div>
-        <select
-          value={conv.assigneeId ?? ""}
-          onChange={(e) =>
-            patchMutation.mutate({
-              assigneeId: e.target.value || null,
-            })
-          }
-          style={styles.select}
-        >
-          <option value="">Unassigned</option>
-          {team.map((m) => (
-            <option key={m.userId} value={m.userId}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div style={styles.divider} />
-
-      {/* Conv info */}
-      <div style={styles.section}>
-        <div style={styles.sectionLabel}>Details</div>
-        <div style={styles.detailRow}>
-          <span style={styles.detailKey}>Channel</span>
-          <span style={styles.detailVal}>
-            {channelIcon(conv.channel)} {conv.channel}
-          </span>
-        </div>
-        {conv.subject && (
-          <div style={styles.detailRow}>
-            <span style={styles.detailKey}>Subject</span>
-            <span style={styles.detailVal}>{conv.subject}</span>
-          </div>
-        )}
-        {conv.snoozedUntil && (
-          <div style={styles.detailRow}>
-            <span style={styles.detailKey}>Snoozed until</span>
-            <span style={styles.detailVal}>
-              {new Date(conv.snoozedUntil).toLocaleString()}
-            </span>
-          </div>
-        )}
-        <div style={styles.detailRow}>
-          <span style={styles.detailKey}>Created</span>
-          <span style={styles.detailVal}>
-            {new Date(conv.createdAt).toLocaleDateString()}
-          </span>
-        </div>
-      </div>
-    </div>
+    </ScrollArea>
   );
 }
 
@@ -867,52 +923,56 @@ export default function Inbox() {
   if (!user) return null;
 
   return (
-    <div style={styles.root}>
+    <div className="flex h-full overflow-hidden bg-background">
       {/* Left pane: filters + conversation list */}
-      <div style={styles.leftPane}>
+      <div className="w-80 flex-shrink-0 border-r border-border flex flex-col bg-background overflow-hidden">
         {/* Channel tabs */}
-        <div style={styles.tabs}>
-          {(["all", "chat", "email"] as const).map((ch) => (
-            <button
-              key={ch}
-              onClick={() => setChannelTab(ch)}
-              style={{
-                ...styles.tab,
-                background: channelTab === ch ? "#4f46e5" : "transparent",
-                color: channelTab === ch ? "#fff" : "#6b7280",
-              }}
-            >
-              {ch === "all" ? "All" : channelIcon(ch === "chat" ? "chat" : "email") + " " + ch.charAt(0).toUpperCase() + ch.slice(1)}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          value={channelTab}
+          onValueChange={(val: string) => setChannelTab(val as "all" | "chat" | "email")}
+          className="w-full border-b border-border"
+        >
+          <TabsList className="w-full rounded-none bg-transparent border-b-0 gap-1 p-3 pb-2">
+            <TabsTrigger value="all" className="text-xs">
+              All
+            </TabsTrigger>
+            <TabsTrigger value="chat" className="text-xs gap-1">
+              <MessageCircle className="size-3" />
+              Chat
+            </TabsTrigger>
+            <TabsTrigger value="email" className="text-xs gap-1">
+              <Mail className="size-3" />
+              Email
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {/* Filter row */}
-        <div style={styles.filterRow}>
-          <select
+        <div className="flex gap-2 px-3 py-2 border-b border-border">
+          <Select
             value={statusFilter}
-            onChange={(e) =>
-              setStatusFilter(e.target.value as "open" | "snoozed" | "resolved")
+            onValueChange={(val: string) =>
+              setStatusFilter(val as "open" | "snoozed" | "resolved")
             }
-            style={styles.filterSelect}
           >
-            <option value="open">Open</option>
-            <option value="snoozed">Snoozed</option>
-            <option value="resolved">Resolved</option>
-          </select>
-          <select
+            <SelectContent>
+              <SelectItem value="open">Open</SelectItem>
+              <SelectItem value="snoozed">Snoozed</SelectItem>
+              <SelectItem value="resolved">Resolved</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
             value={assigneeFilter}
-            onChange={(e) =>
-              setAssigneeFilter(
-                e.target.value as "all" | "mine" | "unassigned"
-              )
+            onValueChange={(val: string) =>
+              setAssigneeFilter(val as "all" | "mine" | "unassigned")
             }
-            style={styles.filterSelect}
           >
-            <option value="all">All Agents</option>
-            <option value="mine">Mine</option>
-            <option value="unassigned">Unassigned</option>
-          </select>
+            <SelectContent>
+              <SelectItem value="all">All Agents</SelectItem>
+              <SelectItem value="mine">Mine</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Conversation list */}
@@ -927,7 +987,7 @@ export default function Inbox() {
       </div>
 
       {/* Middle pane: thread */}
-      <div style={styles.middlePane}>
+      <div className="flex-1 flex flex-col overflow-hidden bg-background">
         {selectedConvId ? (
           <ThreadPane
             key={selectedConvId}
@@ -940,9 +1000,9 @@ export default function Inbox() {
             joinConversation={joinConversation}
           />
         ) : (
-          <div style={styles.emptyThread}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>💬</div>
-            <div style={{ fontSize: 14, color: "#9ca3af" }}>
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <MessageCircle className="size-10 mb-3 text-muted-foreground" />
+            <div className="text-sm text-muted-foreground">
               Select a conversation to start
             </div>
           </div>
@@ -950,7 +1010,7 @@ export default function Inbox() {
       </div>
 
       {/* Right pane: detail */}
-      <div style={styles.rightPaneWrap}>
+      <div className="w-72 flex-shrink-0 border-l border-border flex flex-col overflow-hidden bg-muted/50">
         {selectedConvId ? (
           <DetailPane
             key={selectedConvId}
@@ -958,423 +1018,11 @@ export default function Inbox() {
             onUpdated={handleConversationUpdated}
           />
         ) : (
-          <div style={styles.emptyThread}>
-            <div style={{ fontSize: 13, color: "#d1d5db" }}>No selection</div>
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <div className="text-xs text-muted-foreground">No selection</div>
           </div>
         )}
       </div>
     </div>
   );
 }
-
-// ------------------------------------------------------------------
-// Styles
-// ------------------------------------------------------------------
-const styles: Record<string, React.CSSProperties> = {
-  root: {
-    display: "flex",
-    height: "100%",
-    overflow: "hidden",
-    fontFamily: "system-ui, -apple-system, sans-serif",
-  },
-  // Left pane
-  leftPane: {
-    width: 300,
-    flexShrink: 0,
-    borderRight: "1px solid #e5e7eb",
-    display: "flex",
-    flexDirection: "column",
-    background: "#fff",
-    overflow: "hidden",
-  },
-  tabs: {
-    display: "flex",
-    gap: 4,
-    padding: "12px 12px 8px",
-    borderBottom: "1px solid #f3f4f6",
-  },
-  tab: {
-    flex: 1,
-    padding: "6px 8px",
-    border: "none",
-    borderRadius: 6,
-    cursor: "pointer",
-    fontSize: 12,
-    fontWeight: 500,
-    transition: "background 0.12s",
-  },
-  filterRow: {
-    display: "flex",
-    gap: 8,
-    padding: "8px 12px",
-    borderBottom: "1px solid #f3f4f6",
-  },
-  filterSelect: {
-    flex: 1,
-    padding: "5px 8px",
-    border: "1px solid #e5e7eb",
-    borderRadius: 6,
-    fontSize: 12,
-    color: "#374151",
-    background: "#fff",
-    cursor: "pointer",
-  },
-  list: {
-    flex: 1,
-    overflowY: "auto",
-  },
-  listEmpty: {
-    flex: 1,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  convItem: {
-    padding: "12px 14px",
-    cursor: "pointer",
-    borderBottom: "1px solid #f9fafb",
-    transition: "background 0.1s",
-  },
-  convRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 3,
-  },
-  chanIcon: {
-    fontSize: 13,
-    flexShrink: 0,
-  },
-  convName: {
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#111827",
-    flex: 1,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-  unreadDot: {
-    background: "#4f46e5",
-    color: "#fff",
-    borderRadius: 10,
-    fontSize: 10,
-    fontWeight: 700,
-    padding: "1px 5px",
-    flexShrink: 0,
-  },
-  convPreview: {
-    fontSize: 12,
-    color: "#6b7280",
-    marginBottom: 4,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-  convMeta: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  statusBadge: {
-    fontSize: 10,
-    fontWeight: 600,
-    padding: "1px 6px",
-    borderRadius: 10,
-    textTransform: "uppercase",
-    letterSpacing: "0.03em",
-  },
-  convTime: {
-    fontSize: 11,
-    color: "#9ca3af",
-  },
-  // Middle pane
-  middlePane: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-    background: "#fff",
-  },
-  emptyThread: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  threadPane: {
-    display: "flex",
-    flexDirection: "column",
-    height: "100%",
-    overflow: "hidden",
-  },
-  thread: {
-    flex: 1,
-    overflowY: "auto",
-    padding: "20px 24px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-  bubbleWrap: {
-    display: "flex",
-  },
-  bubble: {
-    padding: "10px 14px",
-    wordBreak: "break-word",
-  },
-  systemMsg: {
-    display: "flex",
-    justifyContent: "center",
-    padding: "4px 0",
-  },
-  systemMsgText: {
-    fontSize: 12,
-    color: "#9ca3af",
-    background: "#f9fafb",
-    padding: "3px 10px",
-    borderRadius: 10,
-  },
-  composer: {
-    borderTop: "1px solid #e5e7eb",
-    padding: "12px 16px",
-    display: "flex",
-    gap: 8,
-    background: "#fff",
-  },
-  composerTextarea: {
-    flex: 1,
-    padding: "10px 12px",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    resize: "none",
-    fontSize: 13,
-    fontFamily: "inherit",
-    height: 72,
-    outline: "none",
-    color: "#111827",
-  },
-  sendBtn: {
-    padding: "0 16px",
-    background: "#4f46e5",
-    color: "#fff",
-    border: "none",
-    borderRadius: 8,
-    fontWeight: 600,
-    fontSize: 13,
-    cursor: "pointer",
-    transition: "opacity 0.12s",
-  },
-  draftBtn: {
-    padding: "0 12px",
-    height: 30,
-    background: "#f5f3ff",
-    color: "#6d28d9",
-    border: "1px solid #ddd6fe",
-    borderRadius: 8,
-    fontWeight: 600,
-    fontSize: 12,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  },
-  cannedMenu: {
-    borderTop: "1px solid #e5e7eb",
-    maxHeight: 180,
-    overflowY: "auto",
-    background: "#fff",
-  },
-  cannedItem: {
-    display: "flex",
-    flexDirection: "column",
-    width: "100%",
-    textAlign: "left",
-    gap: 2,
-    padding: "8px 16px",
-    border: "none",
-    borderBottom: "1px solid #f9fafb",
-    background: "none",
-    cursor: "pointer",
-  },
-  cannedTitle: { fontSize: 13, fontWeight: 600, color: "#4f46e5" },
-  cannedPreview: {
-    fontSize: 12,
-    color: "#9ca3af",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-  // Right pane
-  rightPaneWrap: {
-    width: 260,
-    flexShrink: 0,
-    borderLeft: "1px solid #e5e7eb",
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-    background: "#fafafa",
-  },
-  detailPane: {
-    display: "flex",
-    flexDirection: "column",
-    overflowY: "auto",
-    padding: "16px 0",
-  },
-  contactCard: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "0 16px 16px",
-  },
-  contactAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: "50%",
-    background: "#e0e7ff",
-    color: "#4f46e5",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 16,
-    fontWeight: 700,
-    flexShrink: 0,
-  },
-  contactName: {
-    fontSize: 14,
-    fontWeight: 600,
-    color: "#111827",
-  },
-  contactEmail: {
-    fontSize: 12,
-    color: "#6b7280",
-  },
-  divider: {
-    borderTop: "1px solid #e5e7eb",
-    margin: "0 0 12px",
-  },
-  section: {
-    padding: "0 16px 16px",
-  },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: 600,
-    color: "#9ca3af",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-    marginBottom: 8,
-  },
-  actionRow: {
-    display: "flex",
-    gap: 6,
-    flexWrap: "wrap",
-  },
-  btnPrimary: {
-    padding: "6px 12px",
-    background: "#4f46e5",
-    color: "#fff",
-    border: "none",
-    borderRadius: 6,
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  btnSecondary: {
-    padding: "6px 12px",
-    background: "#f3f4f6",
-    color: "#374151",
-    border: "1px solid #e5e7eb",
-    borderRadius: 6,
-    fontSize: 12,
-    fontWeight: 500,
-    cursor: "pointer",
-  },
-  snoozeMenu: {
-    position: "absolute",
-    top: "100%",
-    left: 0,
-    zIndex: 100,
-    background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
-    minWidth: 150,
-    overflow: "hidden",
-    marginTop: 4,
-  },
-  snoozeItem: {
-    display: "block",
-    width: "100%",
-    padding: "8px 12px",
-    background: "none",
-    border: "none",
-    textAlign: "left",
-    fontSize: 13,
-    color: "#374151",
-    cursor: "pointer",
-  },
-  select: {
-    width: "100%",
-    padding: "6px 8px",
-    border: "1px solid #e5e7eb",
-    borderRadius: 6,
-    fontSize: 12,
-    color: "#374151",
-    background: "#fff",
-    cursor: "pointer",
-  },
-  detailRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    marginBottom: 6,
-    fontSize: 12,
-  },
-  staleBadge: {
-    marginLeft: 8,
-    fontSize: 9,
-    fontWeight: 600,
-    color: "#854d0e",
-    background: "#fef9c3",
-    padding: "1px 5px",
-    borderRadius: 8,
-    textTransform: "none",
-    letterSpacing: 0,
-  },
-  summaryBody: {
-    fontSize: 12,
-    color: "#374151",
-    lineHeight: 1.5,
-    whiteSpace: "pre-wrap",
-    background: "#fff",
-    border: "1px solid #eef2f7",
-    borderRadius: 8,
-    padding: "10px 12px",
-  },
-  summaryMeta: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 6,
-    fontSize: 11,
-    color: "#9ca3af",
-  },
-  regenBtn: {
-    background: "none",
-    border: "none",
-    color: "#4f46e5",
-    fontSize: 12,
-    cursor: "pointer",
-    padding: 0,
-    marginLeft: 8,
-  },
-  detailKey: {
-    color: "#9ca3af",
-  },
-  detailVal: {
-    color: "#374151",
-    fontWeight: 500,
-    maxWidth: "55%",
-    textAlign: "right",
-    wordBreak: "break-word",
-  },
-};
