@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../../api.js";
+import { api, isAdminOnly } from "../../api.js";
+import { AccessDenied } from "@/components/AccessDenied";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,9 +36,10 @@ export default function Domains() {
   const [hostname, setHostname] = useState("");
   const [err, setErr] = useState("");
 
-  const { data: domains = [] } = useQuery<Domain[]>({
+  const { data: domains = [], error: domainsError } = useQuery<Domain[]>({
     queryKey: ["domains"],
     queryFn: () => api<Domain[]>("/api/domains"),
+    retry: (count, e) => !isAdminOnly(e) && count < 2,
   });
 
   const add = useMutation({
@@ -76,6 +78,8 @@ export default function Domains() {
     navigator.clipboard.writeText(value);
     toast.success("Copied to clipboard");
   };
+
+  if (isAdminOnly(domainsError)) return <AccessDenied />;
 
   return (
     <div className="max-w-2xl space-y-8 p-8">

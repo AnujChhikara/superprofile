@@ -13,6 +13,10 @@ import {
 
 const BRAND = "#4f46e5";
 
+// Must match the server's auto-acknowledgement (server/src/routes/widget.ts).
+// Hidden once an agent replies.
+const AUTO_ACK = "Thanks for reaching out — someone will reply soon.";
+
 function getVisitorToken(): string {
   let t = localStorage.getItem("sp_visitor");
   if (!t) {
@@ -88,6 +92,19 @@ export function App({ workspaceKey }: { workspaceKey: string }) {
                 });
               }
             }
+            // Keep the home-list preview + ordering fresh as messages arrive
+            // (agent replies, auto system messages, and the visitor's own echo).
+            setConversations((cs) =>
+              cs.map((c) =>
+                c.id === p.conversationId
+                  ? {
+                      ...c,
+                      lastPreview: p.message.body,
+                      lastMessageAt: p.message.createdAt,
+                    }
+                  : c
+              )
+            );
             // Unread badge when panel closed + message is from an agent.
             if (!openedRef.current && p.message.senderType === "agent") {
               unreadRef.current += 1;
@@ -195,10 +212,27 @@ export function App({ workspaceKey }: { workspaceKey: string }) {
             setActiveId(conv.id);
             setActiveStatus(conv.status);
             setMessages(msgs);
-            setConversations((c) => [conv, ...c]);
+            // `conv` comes from the server without a preview — derive it from
+            // the messages we just created so the home list isn't empty.
+            const last = msgs[msgs.length - 1];
+            const entry: WidgetConversation = {
+              ...conv,
+              lastPreview: last?.body ?? null,
+              lastMessageAt: last?.createdAt ?? conv.lastMessageAt,
+            };
+            setConversations((c) => [entry, ...c.filter((x) => x.id !== conv.id)]);
             socketRef.current?.emit("join", { conversationId: conv.id });
           }}
-          onSent={(msg) => setMessages((m) => m.some((x) => x.id === msg.id) ? m : [...m, msg])}
+          onSent={(msg) => {
+            setMessages((m) => (m.some((x) => x.id === msg.id) ? m : [...m, msg]));
+            setConversations((cs) =>
+              cs.map((c) =>
+                c.id === msg.conversationId
+                  ? { ...c, lastPreview: msg.body, lastMessageAt: msg.createdAt }
+                  : c
+              )
+            );
+          }}
         />
       )}
     </div>
@@ -395,9 +429,15 @@ function Thread({
         {messages.length === 0 && (
           <div style={styles.muted}>Start the conversation below.</div>
         )}
-        {messages.map((m) => (
-          <Bubble key={m.id} m={m} />
-        ))}
+        {(() => {
+          // Once a real agent has replied, drop the automated "we'll reply
+          // soon" acknowledgement — it's redundant next to a human answer.
+          const hasAgentReply = messages.some((m) => m.senderType === "agent");
+          const visible = hasAgentReply
+            ? messages.filter((m) => m.body !== AUTO_ACK)
+            : messages;
+          return visible.map((m) => <Bubble key={m.id} m={m} />);
+        })()}
         {agentTyping && (
           <div style={{ ...styles.bubbleRow, justifyContent: "flex-start" }}>
             <div style={{ ...styles.bubble, ...styles.bubbleAgent, fontStyle: "italic", color: "#6b7280" }}>

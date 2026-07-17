@@ -1100,29 +1100,32 @@ export default function Inbox() {
             joinConversation={joinConversation}
           />
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center">
-            <MessageCircle className="size-10 mb-3 text-muted-foreground" />
-            <div className="text-sm text-muted-foreground">
-              Select a conversation to start
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
+            <div className="flex size-14 items-center justify-center rounded-full bg-muted">
+              <MessageCircle className="size-7 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-sm font-medium text-foreground">
+                No conversation selected
+              </div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                Choose a conversation from the list to read and reply.
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Right pane: detail */}
-      <div className="w-72 flex-shrink-0 border-l border-border flex flex-col overflow-hidden bg-muted/50">
-        {selectedConvId ? (
+      {/* Right pane: detail — only shown when a conversation is open */}
+      {selectedConvId && (
+        <div className="w-72 flex-shrink-0 border-l border-border flex flex-col overflow-hidden bg-muted/50">
           <DetailPane
             key={selectedConvId}
             conversationId={selectedConvId}
             onUpdated={handleConversationUpdated}
           />
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center">
-            <div className="text-xs text-muted-foreground">No selection</div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

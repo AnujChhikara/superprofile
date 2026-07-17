@@ -4,7 +4,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import LinkExtension from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
-import { api } from "../api.js";
+import { api, kbOrigin } from "../api.js";
 import { useAuth } from "../auth.js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +39,7 @@ interface Article {
   updatedAt: string;
 }
 
-const KB_ORIGIN = import.meta.env.VITE_KB_ORIGIN ?? import.meta.env.VITE_API_ORIGIN ?? "http://localhost:3000";
+const KB_ORIGIN = kbOrigin();
 
 export default function KnowledgeBase() {
   const { activeWorkspace } = useAuth();

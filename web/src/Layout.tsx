@@ -36,10 +36,10 @@ import {
 const navItems = [
   { href: "/inbox", icon: Inbox, label: "Inbox" },
   { href: "/knowledge", icon: BookOpen, label: "Knowledge Base" },
-  { href: "/settings", icon: Settings, label: "Settings" },
   { href: "/settings/team", icon: Users, label: "Team" },
   { href: "/settings/domains", icon: Globe, label: "Domains" },
   { href: "/settings/canned", icon: MessageSquare, label: "Canned" },
+  { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
 function AppSidebar() {
@@ -98,7 +98,7 @@ function AppSidebar() {
                 <SidebarMenuButton asChild size="default">
                   <NavLink
                     to={item.href}
-                    end={item.href === "/inbox"}
+                    end={item.href === "/inbox" || item.href === "/settings"}
                     className={({ isActive }) =>
                       isActive ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground"
                     }

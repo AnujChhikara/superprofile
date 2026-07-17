@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../../auth.js";
-import { api } from "../../api.js";
+import { api, kbOrigin } from "../../api.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Copy, ExternalLink, Code2, BookOpen } from "lucide-react";
 
 const API_ORIGIN = import.meta.env.VITE_API_ORIGIN ?? "http://localhost:3000";
-const KB_ORIGIN = import.meta.env.VITE_KB_ORIGIN ?? import.meta.env.VITE_API_ORIGIN ?? "http://localhost:3000";
+const KB_ORIGIN = kbOrigin();
 
 export default function WidgetSettings() {
   const { user, activeWorkspace } = useAuth();
