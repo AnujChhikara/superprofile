@@ -8,19 +8,27 @@ import { and, eq } from "drizzle-orm";
 
 export const workspacesRouter = Router();
 
-// Slugify: lowercase alphanumeric + hyphens, max 40 chars, plus 6-char random suffix
+// Slug = workspace name lowercased, spaces → underscores, no random suffix.
+// This becomes the inbound email local-part: slug@parse.domain
 function slugify(name: string): string {
-  const base = name
+  return name
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "")
+    .replace(/__+/g, "_")
+    .replace(/^_+|_+$/g, "")
     .slice(0, 40);
-  const suffix = crypto.randomBytes(3).toString("hex"); // 6 hex chars
-  return `${base}-${suffix}`;
 }
 
 const createWorkspaceBody = z.object({
-  name: z.string().min(1).max(80),
+  name: z
+    .string()
+    .min(1)
+    .max(40)
+    .regex(
+      /^[a-zA-Z0-9 _]+$/,
+      "Only letters, numbers, spaces, and underscores allowed"
+    ),
 });
 
 // POST /api/workspaces — create a workspace (authenticated)
@@ -34,13 +42,27 @@ workspacesRouter.post("/", requireAuth, async (req, res) => {
   const user = req.user!;
 
   const slug = slugify(name);
+  if (!slug) {
+    return void res.status(400).json({ error: "Workspace name must contain at least one letter or number." });
+  }
+
   const publicKey = "pk_" + crypto.randomBytes(16).toString("hex");
   const id = newId();
 
-  const [workspace] = await db
-    .insert(workspaces)
-    .values({ id, name, slug, publicKey })
-    .returning();
+  let workspace;
+  try {
+    [workspace] = await db
+      .insert(workspaces)
+      .values({ id, name, slug, publicKey })
+      .returning();
+  } catch (err: any) {
+    if (err?.code === "23505") {
+      return void res.status(409).json({
+        error: `The name "${name}" is already taken. Try a more specific name (e.g. "Acme_Support" or "Acme_2024").`,
+      });
+    }
+    throw err;
+  }
 
   await db.insert(memberships).values({
     id: newId(),
