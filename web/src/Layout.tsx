@@ -52,6 +52,10 @@ export default function Layout() {
             <span style={styles.navIcon}>🌐</span>
             Domains
           </NavLink>
+          <NavLink to="/settings/canned" style={navStyle}>
+            <span style={styles.navIcon}>💬</span>
+            Canned
+          </NavLink>
         </nav>
 
         {/* User info at bottom */}

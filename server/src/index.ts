@@ -19,6 +19,7 @@ import { kbPublicApiRouter, kbPublicRouter } from "./routes/kbPublic.js";
 import { summariesRouter } from "./routes/summaries.js";
 import { domainsRouter, customDomainMiddleware } from "./routes/domains.js";
 import { devRouter } from "./routes/dev.js";
+import { cannedRouter } from "./routes/canned.js";
 import { handleInbound } from "./email/inbound.js";
 import { db } from "./db/client.js";
 import { conversations, workspaces } from "./db/schema.js";
@@ -168,6 +169,9 @@ app.use("/api/conversations", summariesRouter);
 
 // Custom domains (admin).
 app.use("/api/domains", domainsRouter);
+
+// Canned responses (stretch).
+app.use("/api/canned", cannedRouter);
 
 // ---- Realtime fan-out: turn in-process events into socket broadcasts ----
 // Registered at module load; the emit helpers no-op until initSocket runs

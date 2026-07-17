@@ -158,6 +158,12 @@ interface TeamMember {
   role: "admin" | "agent";
 }
 
+interface CannedResponse {
+  id: string;
+  title: string;
+  body: string;
+}
+
 // ------------------------------------------------------------------
 // Helpers
 // ------------------------------------------------------------------
@@ -317,6 +323,26 @@ function ThreadPane({
     queryFn: () => api<Message[]>(`/api/conversations/${conversationId}/messages`),
   });
 
+  const { data: canned = [] } = useQuery<CannedResponse[]>({
+    queryKey: ["canned"],
+    queryFn: () => api<CannedResponse[]>("/api/canned"),
+  });
+  // Typing "/" at the start opens a filterable canned-response picker.
+  const cannedMatches =
+    draft.startsWith("/")
+      ? canned.filter((c) =>
+          c.title.toLowerCase().includes(draft.slice(1).toLowerCase())
+        )
+      : [];
+
+  const draftMutation = useMutation({
+    mutationFn: () =>
+      api<{ draft: string }>(`/api/conversations/${conversationId}/draft`, {
+        method: "POST",
+      }),
+    onSuccess: (r) => setDraft(r.draft),
+  });
+
   // Join the conversation room + mark as read when opened.
   useEffect(() => {
     joinConversation(conversationId);
@@ -416,25 +442,52 @@ function ThreadPane({
         )}
         <div ref={bottomRef} />
       </div>
+
+      {/* Canned response picker (type "/" to open) */}
+      {draft.startsWith("/") && cannedMatches.length > 0 && (
+        <div style={styles.cannedMenu}>
+          {cannedMatches.slice(0, 6).map((c) => (
+            <button
+              key={c.id}
+              style={styles.cannedItem}
+              onClick={() => setDraft(c.body)}
+            >
+              <span style={styles.cannedTitle}>{c.title}</span>
+              <span style={styles.cannedPreview}>{c.body.slice(0, 60)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div style={styles.composer}>
         <textarea
           value={draft}
           onChange={handleDraftChange}
           onKeyDown={handleKeyDown}
-          placeholder="Type a reply… (Enter to send, Shift+Enter for newline)"
+          placeholder="Type a reply… ( / for canned, Enter to send )"
           style={styles.composerTextarea}
           disabled={sendMutation.isPending}
         />
-        <button
-          onClick={() => draft.trim() && sendMutation.mutate(draft.trim())}
-          disabled={!draft.trim() || sendMutation.isPending}
-          style={{
-            ...styles.sendBtn,
-            opacity: !draft.trim() || sendMutation.isPending ? 0.5 : 1,
-          }}
-        >
-          Send
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <button
+            onClick={() => draftMutation.mutate()}
+            disabled={draftMutation.isPending}
+            title="AI draft grounded in the summary + knowledge base"
+            style={styles.draftBtn}
+          >
+            {draftMutation.isPending ? "…" : "✨ Draft"}
+          </button>
+          <button
+            onClick={() => draft.trim() && sendMutation.mutate(draft.trim())}
+            disabled={!draft.trim() || sendMutation.isPending}
+            style={{
+              ...styles.sendBtn,
+              opacity: !draft.trim() || sendMutation.isPending ? 0.5 : 1,
+            }}
+          >
+            Send
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1113,6 +1166,44 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     cursor: "pointer",
     transition: "opacity 0.12s",
+  },
+  draftBtn: {
+    padding: "0 12px",
+    height: 30,
+    background: "#f5f3ff",
+    color: "#6d28d9",
+    border: "1px solid #ddd6fe",
+    borderRadius: 8,
+    fontWeight: 600,
+    fontSize: 12,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  cannedMenu: {
+    borderTop: "1px solid #e5e7eb",
+    maxHeight: 180,
+    overflowY: "auto",
+    background: "#fff",
+  },
+  cannedItem: {
+    display: "flex",
+    flexDirection: "column",
+    width: "100%",
+    textAlign: "left",
+    gap: 2,
+    padding: "8px 16px",
+    border: "none",
+    borderBottom: "1px solid #f9fafb",
+    background: "none",
+    cursor: "pointer",
+  },
+  cannedTitle: { fontSize: 13, fontWeight: 600, color: "#4f46e5" },
+  cannedPreview: {
+    fontSize: 12,
+    color: "#9ca3af",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   // Right pane
   rightPaneWrap: {

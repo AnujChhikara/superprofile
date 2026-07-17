@@ -5,6 +5,7 @@ import { and, eq, count } from "drizzle-orm";
 import { requireAuth, requireWorkspace } from "../auth/middleware.js";
 import { getConversation } from "../repos/conversations.js";
 import { maybeSummarize } from "../ai/summarize.js";
+import { generateDraft } from "../ai/draft.js";
 
 export const summariesRouter = Router();
 summariesRouter.use(requireAuth, requireWorkspace());
@@ -58,5 +59,23 @@ summariesRouter.post("/:id/summary/regenerate", async (req, res) => {
   } catch (err) {
     console.error("[summary] regenerate failed:", err);
     return void res.status(503).json({ error: "summary unavailable" });
+  }
+});
+
+// POST /api/conversations/:id/draft → AI-drafted reply grounded in KB + summary.
+summariesRouter.post("/:id/draft", async (req, res) => {
+  const wsId = req.workspaceId!;
+  const id = String(req.params.id);
+  try {
+    await getConversation(wsId, id);
+  } catch {
+    return void res.status(404).json({ error: "conversation not found" });
+  }
+  try {
+    const draft = await generateDraft(wsId, id, req.user!.name);
+    return void res.json({ draft });
+  } catch (err) {
+    console.error("[draft] failed:", err);
+    return void res.status(503).json({ error: "draft unavailable" });
   }
 });
