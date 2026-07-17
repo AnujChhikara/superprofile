@@ -8,11 +8,81 @@ A production-ready, multi-tenant customer communication platform — live chat, 
 
 | What | URL |
 |---|---|
-| **Agent Dashboard** | `https://app.anujchhikara.com` |
-| **API + WebSocket server** | `https://api.anujchhikara.com` |
-| **Demo page (widget installed)** | `https://api.anujchhikara.com/demo` |
-| **Public Knowledge Base** | `https://kb.anujchhikara.com/acme` |
+| **Agent Dashboard** | https://app.anujchhikara.com |
+| **API + WebSocket server** | https://api.anujchhikara.com |
+| **Demo page (widget installed)** | https://api.anujchhikara.com/demo |
+| **Public Knowledge Base** | https://kb.anujchhikara.com/acme |
+| **API health check** | https://api.anujchhikara.com/healthz |
 | **Inbound support email** | `acme@parse.anujchhikara.com` |
+
+---
+
+## Quick Demo Checklist
+
+Everything you need to do before/during a live presentation.
+
+### Step 1 — Seed demo data (30 seconds)
+1. Open **https://app.anujchhikara.com** and sign in with Google
+2. Open DevTools console (F12) and run:
+```js
+fetch('https://api.anujchhikara.com/api/dev/seed', {
+  method: 'POST', credentials: 'include'
+}).then(r => r.json()).then(console.log)
+```
+3. Switch to the **Acme Cloud** workspace in the sidebar (top dropdown)
+
+### Step 2 — Open these tabs before presenting
+| Tab | URL | Purpose |
+|---|---|---|
+| 1 | https://app.anujchhikara.com/inbox | Agent inbox |
+| 2 | https://api.anujchhikara.com/demo | Visitor widget |
+| 3 | https://kb.anujchhikara.com/acme | Public KB site |
+| 4 | Gmail (any account) | Send a test email |
+
+### Step 3 — Demo flow (5 minutes)
+
+**Live chat (Tab 1 + 2)**
+- Tab 2 → click chat bubble → type a message → Tab 1 shows it instantly
+- Reply from Tab 1 → appears in Tab 2 instantly
+- Type in Tab 1 compose → Tab 2 shows "typing…" indicator
+
+**Email channel (Gmail → Tab 1)**
+- Send email to `acme@parse.anujchhikara.com` from Gmail
+- Tab 1 → new Email conversation appears in seconds
+- Reply from inbox → customer gets reply **from** `acme_corp@parse.anujchhikara.com`
+- Reply to that email → threads back into the same conversation
+
+**AI features (Tab 1, any conversation)**
+- Click ⚡ **Draft** → AI reply grounded in KB articles
+- Right panel → AI rolling summary (needs 6+ messages)
+- Type `/` in compose → canned response picker
+
+**Knowledge Base (Tab 3)**
+- KB tab in sidebar → create article → publish → Tab 3 refreshes live
+- Widget: type question related to article → suggestions appear below compose
+
+**Inbox filters**
+- All / Chat / Email tabs
+- Open / Snoozed / Resolved status
+- Assign conversation to team member → filter by Mine
+
+**Custom domains**
+- Settings → Domains → shows DNS verification + Azure cert flow
+- Click **Simulate** to demo the full flow without real DNS changes
+
+### Simulate inbound email (no real Gmail needed)
+```js
+fetch('https://api.anujchhikara.com/api/dev/simulate-inbound', {
+  method: 'POST', credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    to: 'acme@parse.anujchhikara.com',
+    from: 'customer@gmail.com',
+    subject: 'Billing question',
+    text: 'Hi, I was charged twice this month. Can you help?'
+  })
+}).then(r => r.json()).then(console.log)
+```
 
 ---
 
@@ -40,7 +110,7 @@ A production-ready, multi-tenant customer communication platform — live chat, 
 Send a real email to **`acme@parse.anujchhikara.com`** from any Gmail account.
 
 - It appears in the Acme Cloud inbox within seconds as an **Email** conversation
-- Reply from the agent dashboard → the customer receives the reply in their Gmail inbox
+- Reply from the agent dashboard → the customer receives the reply **from** `acme_corp@parse.anujchhikara.com` (the workspace address, not a platform address)
 - Reply to that email again → it threads back into the **same conversation** (Message-ID / In-Reply-To / References headers are preserved)
 
 To seed demo email conversations without sending real email, open browser DevTools on the dashboard and run:
@@ -184,7 +254,7 @@ Single Express process holds REST, Socket.io, SSR KB, and widget assets. All ten
 **Outbound** (agent reply from dashboard):
 1. Mint a stable `Message-ID` (`<msg-{rowId}@parse.anujchhikara.com>`)
 2. Set `In-Reply-To` + `References` from the latest inbound message
-3. Send via SendGrid from `support@anujchhikara.com` with `Reply-To: acme@parse.anujchhikara.com`
+3. Send via SendGrid FROM `<slug>@parse.anujchhikara.com` (authenticated via `em6165.parse.anujchhikara.com` SendGrid domain)
 4. Delivery failures surface as a system message in the thread — conversation stays usable
 
 ---
