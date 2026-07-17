@@ -39,20 +39,37 @@ async function armFetch(
   });
 }
 
-// The asuid TXT verification id for this App Service (cached).
-let cachedVerificationId: string | null = null;
-export async function getVerificationId(): Promise<string> {
-  if (cachedVerificationId) return cachedVerificationId;
+// Site metadata we need for domain provisioning (cached). `location` and
+// `serverFarmId` come straight off the site resource — a managed certificate
+// PUT requires both, so we read them here rather than duplicating config.
+interface SiteInfo {
+  verificationId: string;
+  location: string;
+  serverFarmId: string;
+}
+let cachedSite: SiteInfo | null = null;
+export async function getSiteInfo(): Promise<SiteInfo> {
+  if (cachedSite) return cachedSite;
   const token = await msiToken();
   const res = await armFetch(token, siteBase(), "GET");
-  if (!res.ok) throw new Error(`get site failed: ${res.status}`);
+  if (!res.ok) throw new Error(`get site failed: ${res.status} ${await res.text()}`);
   const data = (await res.json()) as {
-    properties?: { customDomainVerificationId?: string };
+    location?: string;
+    properties?: { customDomainVerificationId?: string; serverFarmId?: string };
   };
-  const id = data.properties?.customDomainVerificationId;
-  if (!id) throw new Error("no customDomainVerificationId");
-  cachedVerificationId = id;
-  return id;
+  const verificationId = data.properties?.customDomainVerificationId;
+  const location = data.location;
+  const serverFarmId = data.properties?.serverFarmId;
+  if (!verificationId) throw new Error("no customDomainVerificationId");
+  if (!location) throw new Error("no site location");
+  if (!serverFarmId) throw new Error("no serverFarmId");
+  cachedSite = { verificationId, location, serverFarmId };
+  return cachedSite;
+}
+
+// The asuid TXT verification id for this App Service.
+export async function getVerificationId(): Promise<string> {
+  return (await getSiteInfo()).verificationId;
 }
 
 // Bind the hostname, issue a free managed cert, then SNI-bind it. Long-running
@@ -60,21 +77,24 @@ export async function getVerificationId(): Promise<string> {
 export async function provisionHostname(hostname: string): Promise<void> {
   const token = await msiToken();
   const base = siteBase();
-  const serverFarmId = `/subscriptions/${env.AZURE_SUBSCRIPTION_ID}/resourceGroups/${env.AZURE_RESOURCE_GROUP}/providers/Microsoft.Web/serverfarms`;
+  // Managed certs require the site's region + its App Service Plan resource id.
+  const { location, serverFarmId } = await getSiteInfo();
 
   // 1) hostname binding (no SSL yet)
   let r = await armFetch(token, `${base}/hostNameBindings/${hostname}`, "PUT", {
     properties: { siteName: env.AZURE_APP_NAME, hostNameType: "Verified" },
   });
-  if (!r.ok) throw new Error(`bind hostname failed: ${r.status}`);
+  if (!r.ok) throw new Error(`bind hostname failed: ${r.status} ${await r.text()}`);
 
-  // 2) managed certificate
+  // 2) managed certificate — Microsoft.Web/certificates is a *tracked* ARM
+  // resource: it requires a top-level `location` and a `serverFarmId` that
+  // points at the specific App Service Plan (not the serverfarms collection).
   const certPath = `${ARM}/subscriptions/${env.AZURE_SUBSCRIPTION_ID}/resourceGroups/${env.AZURE_RESOURCE_GROUP}/providers/Microsoft.Web/certificates/cert-${hostname}`;
   r = await armFetch(token, certPath, "PUT", {
-    location: env.AZURE_RESOURCE_GROUP ? undefined : undefined,
+    location,
     properties: { canonicalName: hostname, serverFarmId },
   });
-  if (!r.ok) throw new Error(`create cert failed: ${r.status}`);
+  if (!r.ok) throw new Error(`create cert failed: ${r.status} ${await r.text()}`);
 
   // Poll for the thumbprint.
   let thumbprint: string | undefined;
@@ -93,5 +113,5 @@ export async function provisionHostname(hostname: string): Promise<void> {
   r = await armFetch(token, `${base}/hostNameBindings/${hostname}`, "PUT", {
     properties: { sslState: "SniEnabled", thumbprint },
   });
-  if (!r.ok) throw new Error(`ssl bind failed: ${r.status}`);
+  if (!r.ok) throw new Error(`ssl bind failed: ${r.status} ${await r.text()}`);
 }
