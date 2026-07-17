@@ -68,8 +68,9 @@ export async function sendReply(params: {
       to: contact.email,
       subject,
       text: message.body,
-      from: `${ws.slug}@${env.PARSE_DOMAIN}`,
+      from: "support@anujchhikara.com",
       fromName: `${ws.name} Support`,
+      replyTo: `${ws.slug}@${env.PARSE_DOMAIN}`,
       headers,
     });
   } catch (err) {

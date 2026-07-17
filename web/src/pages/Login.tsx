@@ -16,14 +16,6 @@ export default function Login() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
-      {/* Indigo radial spotlight — the signature atmospheric element */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 70% 55% at 50% 38%, oklch(0.511 0.229 277 / 0.22) 0%, transparent 70%)",
-        }}
-      />
 
       <div className="relative z-10 w-full max-w-md">
         {/* Card */}
@@ -31,7 +23,7 @@ export default function Login() {
           className="rounded-2xl border bg-card p-8"
           style={{
             borderColor: "oklch(1 0 0 / 0.07)",
-            boxShadow: "0 8px 40px -8px oklch(0 0 0 / 0.4), 0 0 0 1px oklch(1 0 0 / 0.04)",
+            boxShadow: "0 8px 40px -8px rgba(255,255,255,0.06), 0 0 0 1px rgba(255,255,255,0.05)",
           }}
         >
           {/* Logo mark */}
@@ -75,10 +67,7 @@ export default function Login() {
               <div className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center">
-              <span
-                className="px-3 text-xs text-muted-foreground"
-                style={{ background: "oklch(0.18 0.014 277)" }}
-              >
+              <span className="bg-card px-3 text-xs text-muted-foreground">
                 sign in to continue
               </span>
             </div>

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db, newId } from "../db/client.js";
 import { memberships, invites, users, workspaces } from "../db/schema.js";
 import { requireAuth, requireWorkspace } from "../auth/middleware.js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, gt } from "drizzle-orm";
 import { sendEmail } from "../lib/sendEmail.js";
 import { env } from "../env.js";
 
@@ -48,6 +48,52 @@ const inviteBody = z.object({
   email: z.string().email(),
   role: z.enum(["admin", "agent"]),
 });
+
+// GET /api/team/invites — list pending invites (admin only)
+teamRouter.get(
+  "/invites",
+  requireAuth,
+  requireWorkspace("admin"),
+  async (req, res) => {
+    const wsId = req.workspaceId!;
+    const now = new Date();
+
+    const rows = await db
+      .select({
+        id: invites.id,
+        email: invites.email,
+        role: invites.role,
+        expiresAt: invites.expiresAt,
+      })
+      .from(invites)
+      .where(
+        and(
+          eq(invites.workspaceId, wsId),
+          isNull(invites.acceptedAt),
+          gt(invites.expiresAt, now)
+        )
+      );
+
+    return void res.json(rows);
+  }
+);
+
+// DELETE /api/team/invites/:id — revoke a pending invite (admin only)
+teamRouter.delete(
+  "/invites/:id",
+  requireAuth,
+  requireWorkspace("admin"),
+  async (req, res) => {
+    const wsId = req.workspaceId!;
+    const inviteId = String(req.params.id);
+
+    await db
+      .delete(invites)
+      .where(and(eq(invites.id, inviteId), eq(invites.workspaceId, wsId)));
+
+    return void res.json({ ok: true });
+  }
+);
 
 // POST /api/team/invites — create invite (admin only)
 teamRouter.post(
@@ -93,6 +139,8 @@ teamRouter.post(
     try {
       await sendEmail({
         to: email,
+        from: "support@anujchhikara.com",
+        fromName: "SuperProfile",
         subject: `You've been invited to ${wsName} on SuperProfile`,
         text:
           `You've been invited to join ${wsName} as ${role}.\n\n` +

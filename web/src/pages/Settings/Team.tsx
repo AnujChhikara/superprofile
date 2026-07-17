@@ -4,14 +4,12 @@ import { api } from "../../api.js";
 import { useAuth } from "../../auth.js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FieldGroup, Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Copy, Trash2, AlertTriangle } from "lucide-react";
-import { toast } from "sonner";
+import { Trash2, AlertTriangle, CheckCircle2, Clock, X } from "lucide-react";
 
 interface Member {
   userId: string;
@@ -21,18 +19,37 @@ interface Member {
   avatarUrl: string | null;
 }
 
+interface PendingInvite {
+  id: string;
+  email: string;
+  role: "admin" | "agent";
+  expiresAt: string;
+}
+
+function daysUntil(dateStr: string): number {
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+}
+
 export default function TeamSettings() {
   const { activeWorkspace } = useAuth();
   const queryClient = useQueryClient();
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "agent">("agent");
-  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
-  const { data: members = [], isLoading } = useQuery({
+  const isAdmin = activeWorkspace?.role === "admin";
+
+  const { data: members = [], isLoading: membersLoading } = useQuery({
     queryKey: ["team", activeWorkspace?.id],
     queryFn: () => api<Member[]>("/api/team"),
     enabled: !!activeWorkspace,
+  });
+
+  const { data: pendingInvites = [] } = useQuery({
+    queryKey: ["invites", activeWorkspace?.id],
+    queryFn: () => api<PendingInvite[]>("/api/team/invites"),
+    enabled: !!activeWorkspace && isAdmin,
   });
 
   const sendInvite = useMutation({
@@ -41,14 +58,23 @@ export default function TeamSettings() {
         method: "POST",
         body: JSON.stringify({ email, role }),
       }),
-    onSuccess: (data) => {
-      setInviteUrl(data.inviteUrl);
+    onSuccess: (_data, variables) => {
+      setInvitedEmail(variables.email);
       setInviteEmail("");
       setInviteError(null);
       queryClient.invalidateQueries({ queryKey: ["team", activeWorkspace?.id] });
+      queryClient.invalidateQueries({ queryKey: ["invites", activeWorkspace?.id] });
     },
     onError: (err: Error) => {
       setInviteError(err.message);
+    },
+  });
+
+  const revokeInvite = useMutation({
+    mutationFn: (inviteId: string) =>
+      api(`/api/team/invites/${inviteId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invites", activeWorkspace?.id] });
     },
   });
 
@@ -75,15 +101,8 @@ export default function TeamSettings() {
     e.preventDefault();
     if (!inviteEmail.trim()) return;
     setInviteError(null);
-    setInviteUrl(null);
+    setInvitedEmail(null);
     sendInvite.mutate({ email: inviteEmail.trim(), role: inviteRole });
-  };
-
-  const copyLink = () => {
-    if (!inviteUrl) return;
-    navigator.clipboard.writeText(inviteUrl).then(() => {
-      toast.success("Invite link copied!");
-    });
   };
 
   if (!activeWorkspace) {
@@ -98,69 +117,107 @@ export default function TeamSettings() {
       </div>
 
       {/* Invite form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Invite a teammate</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <form onSubmit={handleInviteSubmit} className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <FieldGroup className="flex-1">
-                <Field>
-                  <Input
-                    type="email"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="colleague@company.com"
-                    required
-                  />
-                </Field>
-              </FieldGroup>
-              <FieldGroup className="min-w-max">
-                <Field>
-                  <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as "admin" | "agent")}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="agent">Agent</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </FieldGroup>
-              <Button type="submit" disabled={sendInvite.isPending}>
-                {sendInvite.isPending ? "Sending…" : "Send invite"}
-              </Button>
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Invite a teammate</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form onSubmit={handleInviteSubmit}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="colleague@company.com"
+                  required
+                  className="flex-1"
+                />
+                <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as "admin" | "agent")}>
+                  <SelectTrigger className="w-full sm:w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="agent">Agent</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button type="submit" disabled={sendInvite.isPending} className="w-full sm:w-auto">
+                  {sendInvite.isPending ? "Sending…" : "Send invite"}
+                </Button>
+              </div>
+            </form>
+
+            {inviteError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="size-4" />
+                <AlertDescription>{inviteError}</AlertDescription>
+              </Alert>
+            )}
+
+            {invitedEmail && (
+              <Alert>
+                <CheckCircle2 className="size-4 text-green-500" />
+                <AlertDescription>
+                  Invite sent to <span className="font-medium">{invitedEmail}</span> — they'll receive an email with a link to join.
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pending invites */}
+      {isAdmin && pendingInvites.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Pending Invites</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {pendingInvites.map((invite) => {
+                const days = daysUntil(invite.expiresAt);
+                return (
+                  <div
+                    key={invite.id}
+                    className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground shrink-0">
+                        <Clock className="size-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{invite.email}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Expires in {days} day{days !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="secondary" className="capitalize text-xs">
+                        {invite.role}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs text-amber-500 border-amber-500/30 bg-amber-500/5">
+                        Pending
+                      </Badge>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => revokeInvite.mutate(invite.id)}
+                        disabled={revokeInvite.isPending}
+                        title="Revoke invite"
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </form>
-
-          {inviteError && (
-            <Alert variant="destructive">
-              <AlertTriangle className="size-4" />
-              <AlertDescription>{inviteError}</AlertDescription>
-            </Alert>
-          )}
-
-          {inviteUrl && (
-            <Alert>
-              <AlertDescription className="space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground">
-                  Invite link (share this link):
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 break-all rounded bg-muted p-2 text-xs">
-                    {inviteUrl}
-                  </code>
-                  <Button size="sm" variant="outline" onClick={copyLink}>
-                    <Copy className="size-3" />
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Members list */}
       <Card>
@@ -168,12 +225,12 @@ export default function TeamSettings() {
           <CardTitle className="text-lg">Members</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {membersLoading ? (
             <p className="text-muted-foreground">Loading…</p>
           ) : members.length === 0 ? (
             <p className="text-muted-foreground">No members yet.</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {members.map((m) => (
                 <div key={m.userId} className="flex items-center justify-between rounded-lg border p-4">
                   <div className="flex items-center gap-3">
@@ -187,15 +244,12 @@ export default function TeamSettings() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {activeWorkspace.role === "admin" ? (
+                    {isAdmin ? (
                       <>
                         <Select
                           value={m.role}
                           onValueChange={(role) =>
-                            changeRole.mutate({
-                              userId: m.userId,
-                              role: role as "admin" | "agent",
-                            })
+                            changeRole.mutate({ userId: m.userId, role: role as "admin" | "agent" })
                           }
                         >
                           <SelectTrigger className="w-24">
@@ -217,7 +271,7 @@ export default function TeamSettings() {
                         </Button>
                       </>
                     ) : (
-                      <Badge variant={m.role === "admin" ? "default" : "secondary"}>
+                      <Badge variant={m.role === "admin" ? "default" : "secondary"} className="capitalize">
                         {m.role}
                       </Badge>
                     )}

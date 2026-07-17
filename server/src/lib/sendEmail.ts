@@ -8,12 +8,13 @@ export interface EmailOptions {
   headers?: Record<string, string>;
   from?: string;
   fromName?: string;
+  replyTo?: string;
 }
 
-const DEFAULT_FROM = "no-reply@parse.anujchhikara.com";
+const DEFAULT_FROM = "support@anujchhikara.com";
 
 export async function sendEmail(opts: EmailOptions): Promise<void> {
-  const { to, subject, text, html, headers, from = DEFAULT_FROM, fromName } =
+  const { to, subject, text, html, headers, from = DEFAULT_FROM, fromName, replyTo } =
     opts;
 
   if (!env.SENDGRID_API_KEY) {
@@ -30,13 +31,17 @@ export async function sendEmail(opts: EmailOptions): Promise<void> {
 
   const body: Record<string, unknown> = {
     personalizations: [{ to: [{ email: to }] }],
-    from: { email: from },
+    from: fromName ? { email: from, name: fromName } : { email: from },
     subject,
     content: [{ type: "text/plain", value: text }],
   };
 
   if (html) {
     (body.content as unknown[]).push({ type: "text/html", value: html });
+  }
+
+  if (replyTo) {
+    body.reply_to = { email: replyTo };
   }
 
   if (headers && Object.keys(headers).length > 0) {

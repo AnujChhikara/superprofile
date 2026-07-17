@@ -44,15 +44,20 @@ function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-2">
-          <span className="text-2xl">💬</span>
-          <span className="text-lg font-bold">SuperProfile</span>
+      <SidebarHeader className="px-3 py-4">
+        <div className="flex items-center gap-2.5">
+          <div
+            className="flex size-8 items-center justify-center rounded-lg text-sm font-bold text-white shrink-0"
+            style={{ background: "oklch(0.60 0.22 277)" }}
+          >
+            S
+          </div>
+          <span className="text-base font-semibold tracking-tight">SuperProfile</span>
         </div>
       </SidebarHeader>
 
       {workspaces.length > 0 && (
-        <div className="px-2 pb-4">
+        <div className="px-3 pb-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm">
@@ -81,18 +86,18 @@ function AppSidebar() {
 
       <Separator />
 
-      <SidebarContent>
+      <SidebarContent className="px-2 pt-2">
         <SidebarMenu>
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
               <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton asChild>
+                <SidebarMenuButton asChild size="default">
                   <NavLink
                     to={item.href}
                     end={item.href === "/inbox"}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 ${isActive ? "bg-sidebar-accent" : ""}`
+                      isActive ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground"
                     }
                   >
                     <Icon className="size-4" />
@@ -107,17 +112,17 @@ function AppSidebar() {
 
       <Separator />
 
-      <SidebarFooter>
+      <SidebarFooter className="px-3 py-3">
         {user && (
           <div className="flex items-center gap-3">
-            <Avatar className="size-8">
+            <Avatar className="size-8 shrink-0">
               <AvatarImage src={user.avatarUrl || ""} alt={user.name} />
               <AvatarFallback>
                 {user.name?.charAt(0)?.toUpperCase() ?? "?"}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold">{user.name}</div>
+              <div className="truncate text-sm font-medium">{user.name}</div>
               <div className="truncate text-xs text-muted-foreground">
                 {user.email}
               </div>
@@ -134,10 +139,11 @@ export default function Layout() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center border-b">
-          <SidebarTrigger className="ml-4" />
+        <header className="flex h-14 shrink-0 items-center border-b px-4 gap-3">
+          <SidebarTrigger />
+          <Separator orientation="vertical" className="h-4" />
         </header>
-        <main className="flex-1 overflow-auto">
+        <main className="flex flex-1 flex-col overflow-hidden">
           <Outlet />
         </main>
       </SidebarInset>

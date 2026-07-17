@@ -9,6 +9,8 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
   Avatar,
   AvatarFallback,
   Badge,
@@ -217,6 +219,7 @@ interface ConvListProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   userId: string;
+  team: TeamMember[];
 }
 
 function ConversationList({
@@ -226,6 +229,7 @@ function ConversationList({
   selectedId,
   onSelect,
   userId,
+  team,
 }: ConvListProps) {
   const params = new URLSearchParams();
   if (channel !== "all") params.set("channel", channel);
@@ -297,21 +301,31 @@ function ConversationList({
                 : "No messages yet"}
             </div>
 
-            {/* Meta: status badge, time */}
+            {/* Meta: status badge, assignee, time */}
             <div className="flex items-center justify-between gap-2">
-              <Badge
-                variant={
-                  conv.status === "open"
-                    ? "default"
-                    : conv.status === "snoozed"
-                    ? "secondary"
-                    : "outline"
-                }
-                className="text-xs"
-              >
-                {conv.status}
-              </Badge>
-              <span className="text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Badge
+                  variant={
+                    conv.status === "open"
+                      ? "default"
+                      : conv.status === "snoozed"
+                      ? "secondary"
+                      : "outline"
+                  }
+                  className="text-xs shrink-0"
+                >
+                  {conv.status}
+                </Badge>
+                {conv.assigneeId && (() => {
+                  const agent = team.find((m) => m.userId === conv.assigneeId);
+                  return agent ? (
+                    <span className="text-xs text-muted-foreground truncate">
+                      {agent.name.split(" ")[0]}
+                    </span>
+                  ) : null;
+                })()}
+              </div>
+              <span className="text-xs text-muted-foreground shrink-0">
                 {formatTime(conv.lastMessageAt)}
               </span>
             </div>
@@ -353,6 +367,11 @@ function ThreadPane({
   const { data: messages = [] } = useQuery<Message[]>({
     queryKey: ["messages", conversationId],
     queryFn: () => api<Message[]>(`/api/conversations/${conversationId}/messages`),
+  });
+
+  const { data: convMeta } = useQuery<Conversation & { contact: Contact | null }>({
+    queryKey: ["conversation", conversationId],
+    queryFn: () => api<Conversation & { contact: Contact | null }>(`/api/conversations/${conversationId}`),
   });
 
   const { data: canned = [] } = useQuery<CannedResponse[]>({
@@ -443,10 +462,35 @@ function ThreadPane({
   }
 
   // The highest agent-message seq the contact has read → renders ✓✓.
+  const contact = convMeta?.contact;
+  const contactName = contact?.name ?? contact?.email ?? "Unknown";
+  const contactInitial = contactName.charAt(0).toUpperCase();
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {/* Thread header */}
+      <div className="flex items-center gap-3 border-b px-4 py-3 shrink-0">
+        <div className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground text-sm font-medium shrink-0">
+          {contactInitial}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold truncate">{contactName}</p>
+          {contact?.email && contact?.name && (
+            <p className="text-xs text-muted-foreground truncate">{contact.email}</p>
+          )}
+        </div>
+        {convMeta?.channel && (
+          <div className="ml-auto shrink-0">
+            {convMeta.channel === "chat"
+              ? <MessageCircle className="size-4 text-muted-foreground" />
+              : <Mail className="size-4 text-muted-foreground" />
+            }
+          </div>
+        )}
+      </div>
+
       <ScrollArea className="flex-1">
-        <div className="flex flex-col gap-3 px-6 py-5">
+        <div className="flex flex-col gap-2 px-4 py-4">
           {messages.map((msg) => (
             <MessageBubble
               key={msg.id}
@@ -554,23 +598,27 @@ function MessageBubble({
   }
 
   return (
-    <div className={cn("flex", isAgent ? "justify-end" : "justify-start")}>
-      <div
-        className={cn(
-          "flex flex-col max-w-[70%] rounded-2xl px-3.5 py-2.5 whitespace-pre-wrap break-words",
-          isAgent
-            ? "bg-primary text-primary-foreground rounded-tr-none"
-            : "bg-muted text-foreground rounded-tl-none"
-        )}
-      >
-        <p className="m-0">{message.body}</p>
-        <span
-          className="text-xs opacity-60 mt-1 block"
-          title={readByContact ? "Read" : "Sent"}
+    <div className={cn("flex gap-2", isAgent ? "justify-end" : "justify-start")}>
+      {!isAgent && (
+        <div className="flex size-6 items-center justify-center rounded-full bg-muted text-muted-foreground text-xs font-medium shrink-0 mt-1">
+          ?
+        </div>
+      )}
+      <div className={cn("flex flex-col max-w-[65%]", isAgent ? "items-end" : "items-start")}>
+        <div
+          className={cn(
+            "rounded-2xl px-3.5 py-2.5 text-sm whitespace-pre-wrap break-words",
+            isAgent
+              ? "bg-primary/90 text-primary-foreground rounded-br-sm"
+              : "bg-secondary text-secondary-foreground rounded-bl-sm"
+          )}
         >
+          {message.body}
+        </div>
+        <span className="text-[11px] text-muted-foreground mt-1 px-1">
           {formatTime(message.createdAt)}
           {isOwnAgent && (
-            <span className="ml-1">
+            <span className="ml-1 opacity-70">
               {readByContact ? "✓✓" : "✓"}
             </span>
           )}
@@ -828,11 +876,12 @@ function DetailPane({ conversationId, onUpdated }: DetailPaneProps) {
           <Select
             value={conv.assigneeId ?? ""}
             onValueChange={(value: string) =>
-              patchMutation.mutate({
-                assigneeId: value || null,
-              })
+              patchMutation.mutate({ assigneeId: value || null })
             }
           >
+            <SelectTrigger className="w-full text-sm h-9">
+              <SelectValue placeholder="Unassigned" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="">Unassigned</SelectItem>
               {team.map((m) => (
@@ -851,37 +900,37 @@ function DetailPane({ conversationId, onUpdated }: DetailPaneProps) {
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
             Details
           </div>
-          <div className="space-y-1.5 text-xs">
-            <div className="flex justify-between items-center">
+          <div className="space-y-2 text-xs">
+            <div className="grid grid-cols-2 gap-1">
               <span className="text-muted-foreground">Channel</span>
-              <span className="text-foreground font-medium flex items-center gap-1">
+              <span className="text-foreground font-medium flex items-center gap-1 justify-end">
                 {conv.channel === "chat" ? (
-                  <MessageCircle className="size-3" />
+                  <MessageCircle className="size-3 shrink-0" />
                 ) : (
-                  <Mail className="size-3" />
+                  <Mail className="size-3 shrink-0" />
                 )}
-                {conv.channel}
+                <span className="capitalize">{conv.channel}</span>
               </span>
             </div>
             {conv.subject && (
-              <div className="flex justify-between items-start">
+              <div className="grid grid-cols-2 gap-1">
                 <span className="text-muted-foreground">Subject</span>
-                <span className="text-foreground font-medium text-right max-w-[55%] break-words">
+                <span className="text-foreground font-medium text-right break-words">
                   {conv.subject}
                 </span>
               </div>
             )}
             {conv.snoozedUntil && (
-              <div className="flex justify-between items-start">
-                <span className="text-muted-foreground">Snoozed until</span>
-                <span className="text-foreground font-medium text-right max-w-[55%]">
-                  {new Date(conv.snoozedUntil).toLocaleString()}
+              <div className="grid grid-cols-2 gap-1">
+                <span className="text-muted-foreground">Snoozed</span>
+                <span className="text-foreground font-medium text-right">
+                  {new Date(conv.snoozedUntil).toLocaleDateString()}
                 </span>
               </div>
             )}
-            <div className="flex justify-between items-center">
+            <div className="grid grid-cols-2 gap-1">
               <span className="text-muted-foreground">Created</span>
-              <span className="text-foreground font-medium">
+              <span className="text-foreground font-medium text-right">
                 {new Date(conv.createdAt).toLocaleDateString()}
               </span>
             </div>
@@ -911,6 +960,12 @@ export default function Inbox() {
   >("all");
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
 
+  const { data: team = [] } = useQuery<TeamMember[]>({
+    queryKey: ["team"],
+    queryFn: () => api<TeamMember[]>("/api/team"),
+    enabled: !!activeWorkspace,
+  });
+
   const handleConversationUpdated = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["conversations"] });
     if (selectedConvId) {
@@ -923,24 +978,24 @@ export default function Inbox() {
   if (!user) return null;
 
   return (
-    <div className="flex h-full overflow-hidden bg-background">
+    <div className="flex flex-1 overflow-hidden bg-background">
       {/* Left pane: filters + conversation list */}
-      <div className="w-80 flex-shrink-0 border-r border-border flex flex-col bg-background overflow-hidden">
+      <div className="w-72 flex-shrink-0 border-r border-border flex flex-col bg-background overflow-hidden">
         {/* Channel tabs */}
         <Tabs
           value={channelTab}
           onValueChange={(val: string) => setChannelTab(val as "all" | "chat" | "email")}
           className="w-full border-b border-border"
         >
-          <TabsList className="w-full rounded-none bg-transparent border-b-0 gap-1 p-3 pb-2">
-            <TabsTrigger value="all" className="text-xs">
+          <TabsList className="w-full justify-start rounded-none bg-transparent border-b-0 gap-0.5 px-3 py-2.5">
+            <TabsTrigger value="all" className="text-xs px-3 h-7">
               All
             </TabsTrigger>
-            <TabsTrigger value="chat" className="text-xs gap-1">
+            <TabsTrigger value="chat" className="text-xs gap-1.5 px-3 h-7">
               <MessageCircle className="size-3" />
               Chat
             </TabsTrigger>
-            <TabsTrigger value="email" className="text-xs gap-1">
+            <TabsTrigger value="email" className="text-xs gap-1.5 px-3 h-7">
               <Mail className="size-3" />
               Email
             </TabsTrigger>
@@ -948,13 +1003,16 @@ export default function Inbox() {
         </Tabs>
 
         {/* Filter row */}
-        <div className="flex gap-2 px-3 py-2 border-b border-border">
+        <div className="flex gap-2 px-3 py-2.5 border-b border-border">
           <Select
             value={statusFilter}
             onValueChange={(val: string) =>
               setStatusFilter(val as "open" | "snoozed" | "resolved")
             }
           >
+            <SelectTrigger className="h-8 flex-1 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="open">Open</SelectItem>
               <SelectItem value="snoozed">Snoozed</SelectItem>
@@ -967,6 +1025,9 @@ export default function Inbox() {
               setAssigneeFilter(val as "all" | "mine" | "unassigned")
             }
           >
+            <SelectTrigger className="h-8 flex-1 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Agents</SelectItem>
               <SelectItem value="mine">Mine</SelectItem>
@@ -983,6 +1044,7 @@ export default function Inbox() {
           selectedId={selectedConvId}
           onSelect={setSelectedConvId}
           userId={user.id}
+          team={team}
         />
       </div>
 

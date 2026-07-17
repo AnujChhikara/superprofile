@@ -1,5 +1,5 @@
 import { db } from "../db/client.js";
-import { messages, summaries, kbArticles } from "../db/schema.js";
+import { messages, summaries, kbArticles, workspaces } from "../db/schema.js";
 import { and, eq, sql } from "drizzle-orm";
 import { chat } from "./openai.js";
 
@@ -15,30 +15,41 @@ export function buildDraftPrompt({
   lastMessages,
   kbArticles: kb,
   agentName,
+  workspaceName,
 }: {
   summary: string | null;
   lastMessages: DraftMsg[];
   kbArticles: Array<{ title: string; body: string }>;
   agentName: string;
+  workspaceName: string;
 }): { system: string; user: string } {
-  const system = `You are a customer support agent drafting a reply.
-Write in a warm, concise, professional tone.
-Only state facts present in the provided context (summary, messages, knowledge base). If you don't know, say you'll check.
-Do not invent policies, prices, or promises.
-Sign off as ${agentName}.`;
+  const hasKb = kb.length > 0;
 
-  const kbBlock = kb.length
-    ? "Knowledge base:\n" +
-      kb.map((a) => `# ${a.title}\n${a.body.slice(0, 800)}`).join("\n\n")
-    : "Knowledge base: (no relevant articles)";
+  const system = `You are a customer support agent for ${workspaceName}, drafting a reply to a customer message.
+
+STRICT RULES — follow these exactly:
+1. You may ONLY use information from the Knowledge Base articles and conversation history provided below.
+2. Do NOT use your own general knowledge, training data, or outside information under any circumstances.
+3. If the customer's question is NOT covered by the Knowledge Base articles below, respond with: "Thanks for reaching out! I'll look into this and get back to you shortly." Do not attempt to answer from general knowledge.
+4. Never answer technical questions, explain concepts, give advice, or make promises unless that exact information is in the Knowledge Base below.
+5. Do not invent policies, prices, features, or procedures.
+6. Write in a warm, concise, professional tone.
+7. Sign off as ${agentName}.`;
+
+  const kbBlock = hasKb
+    ? "--- KNOWLEDGE BASE (use only this) ---\n" +
+      kb.map((a) => `## ${a.title}\n${a.body.slice(0, 800)}`).join("\n\n") +
+      "\n--- END KNOWLEDGE BASE ---"
+    : "--- KNOWLEDGE BASE ---\n(No relevant articles found for this question)\n--- END KNOWLEDGE BASE ---";
+
   const transcript = lastMessages
-    .map(
-      (m) => `${m.senderType === "contact" ? "CUSTOMER" : "AGENT"}: ${m.body}`
-    )
+    .map((m) => `${m.senderType === "contact" ? "CUSTOMER" : "AGENT"}: ${m.body}`)
     .join("\n");
+
   const user =
     (summary ? `Conversation summary:\n${summary}\n\n` : "") +
-    `${kbBlock}\n\nRecent messages:\n${transcript}\n\nDraft the next agent reply:`;
+    `${kbBlock}\n\nRecent conversation:\n${transcript}\n\nDraft the next agent reply. If the KB has no answer, use the fallback message from rule 3:`;
+
   return { system, user };
 }
 
@@ -48,6 +59,9 @@ export async function generateDraft(
   conversationId: string,
   agentName: string
 ): Promise<string> {
+  const wsRow = (await db.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.id, workspaceId)))[0];
+  const workspaceName = wsRow?.name ?? "Support";
+
   const recent = await db
     .select({ senderType: messages.senderType, body: messages.body, seq: messages.seq })
     .from(messages)
@@ -90,6 +104,7 @@ export async function generateDraft(
     lastMessages,
     kbArticles: kb,
     agentName,
+    workspaceName,
   });
 
   return chat(
