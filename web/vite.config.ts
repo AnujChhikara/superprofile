@@ -11,7 +11,4 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  optimizeDeps: {
-    exclude: ["@radix-ui", "radix-ui", "react-remove-scroll", "use-sidecar"],
-  },
 })
