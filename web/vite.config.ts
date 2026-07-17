@@ -12,15 +12,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ["react-remove-scroll"],
-    include: ["tslib"],
-  },
-  ssr: {
-    noExternal: ["tslib", "react-remove-scroll"],
-  },
-  build: {
-    rollupOptions: {
-      external: ["tslib"],
-    },
+    exclude: ["@radix-ui", "radix-ui", "react-remove-scroll", "use-sidecar"],
   },
 })
