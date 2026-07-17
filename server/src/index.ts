@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import { readFileSync } from "fs";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
 import { env } from "./env.js";
 import { checkOrigin } from "./auth/middleware.js";
 import { authRouter, meRouter } from "./routes/auth.js";
@@ -17,9 +18,10 @@ import { kbRouter } from "./routes/kb.js";
 import { kbPublicApiRouter, kbPublicRouter } from "./routes/kbPublic.js";
 import { summariesRouter } from "./routes/summaries.js";
 import { domainsRouter, customDomainMiddleware } from "./routes/domains.js";
+import { devRouter } from "./routes/dev.js";
 import { handleInbound } from "./email/inbound.js";
-import { db, newId } from "./db/client.js";
-import { contacts, conversations, messages, workspaces } from "./db/schema.js";
+import { db } from "./db/client.js";
+import { conversations, workspaces } from "./db/schema.js";
 import { eq, lt, and } from "drizzle-orm";
 import {
   onMessageCreated,
@@ -35,6 +37,16 @@ import {
 export const app = express();
 export const httpServer = http.createServer(app);
 app.set("trust proxy", 1);
+// Security headers. CSP/CORP/COEP disabled so the widget can be embedded on,
+// and its script loaded by, arbitrary third-party origins. The widget frame
+// route below further relaxes X-Frame-Options.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: false,
+    crossOriginEmbedderPolicy: false,
+  })
+);
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "5mb" })); // sendgrid inbound is form-encoded
 app.use(cookieParser());
@@ -110,8 +122,11 @@ app.use((req, res, next) => {
 
 // Loader script + built frame assets.
 app.use(express.static(publicDir));
-// SPA entry for the widget iframe (any ?ws=... query).
+// SPA entry for the widget iframe (any ?ws=... query). Must be embeddable on
+// any origin, so drop X-Frame-Options and allow all frame ancestors.
 app.get("/widget/frame", (_req, res) => {
+  res.removeHeader("X-Frame-Options");
+  res.setHeader("Content-Security-Policy", "frame-ancestors *");
   res.sendFile(path.join(publicDir, "widget", "index.html"), (err) => {
     if (err) res.status(404).send("widget frame not built");
   });
@@ -187,138 +202,9 @@ if (env.DEMO_MODE) {
   });
 }
 
-// Dev seed route — only mounted when DEMO_MODE is true
+// Dev routes (seed) — DEMO_MODE only.
 if (env.DEMO_MODE) {
-  app.post("/api/dev/seed", async (req, res) => {
-    try {
-      const wsId = req.header("X-Workspace-Id");
-      if (!wsId) {
-        return void res.status(400).json({ error: "X-Workspace-Id header required" });
-      }
-
-      // Create a demo contact
-      const contactId = newId();
-      await db.insert(contacts).values({
-        id: contactId,
-        workspaceId: wsId,
-        email: `demo-contact-${Date.now()}@example.com`,
-        name: "Demo Contact",
-        lastSeenAt: new Date(),
-      });
-
-      // Conversation 1: open chat conversation with a few messages
-      const conv1Id = newId();
-      await db.insert(conversations).values({
-        id: conv1Id,
-        workspaceId: wsId,
-        contactId,
-        channel: "chat",
-        status: "open",
-        lastMessageAt: new Date(),
-      });
-      await db.insert(messages).values([
-        {
-          id: newId(),
-          conversationId: conv1Id,
-          workspaceId: wsId,
-          senderType: "contact",
-          body: "Hello! I need help with my account.",
-          createdAt: new Date(Date.now() - 10 * 60 * 1000),
-        },
-        {
-          id: newId(),
-          conversationId: conv1Id,
-          workspaceId: wsId,
-          senderType: "agent",
-          body: "Hi there! I'd be happy to help. What seems to be the issue?",
-          createdAt: new Date(Date.now() - 9 * 60 * 1000),
-        },
-        {
-          id: newId(),
-          conversationId: conv1Id,
-          workspaceId: wsId,
-          senderType: "contact",
-          body: "I can't log in to my account.",
-          createdAt: new Date(Date.now() - 8 * 60 * 1000),
-        },
-      ]);
-
-      // Conversation 2: snoozed email conversation
-      const snoozeUntil = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
-      const conv2Id = newId();
-      await db.insert(conversations).values({
-        id: conv2Id,
-        workspaceId: wsId,
-        contactId,
-        channel: "email",
-        status: "snoozed",
-        subject: "Billing question",
-        snoozedUntil: snoozeUntil,
-        lastMessageAt: new Date(Date.now() - 30 * 60 * 1000),
-      });
-      await db.insert(messages).values([
-        {
-          id: newId(),
-          conversationId: conv2Id,
-          workspaceId: wsId,
-          senderType: "contact",
-          body: "I have a question about my latest invoice.",
-          emailMessageId: `msg-${Date.now()}@example.com`,
-          createdAt: new Date(Date.now() - 35 * 60 * 1000),
-        },
-        {
-          id: newId(),
-          conversationId: conv2Id,
-          workspaceId: wsId,
-          senderType: "agent",
-          body: "Thanks for reaching out! I'll look into this and get back to you shortly.",
-          createdAt: new Date(Date.now() - 30 * 60 * 1000),
-        },
-      ]);
-
-      // Conversation 3: resolved chat conversation
-      const conv3Id = newId();
-      await db.insert(conversations).values({
-        id: conv3Id,
-        workspaceId: wsId,
-        contactId,
-        channel: "chat",
-        status: "resolved",
-        lastMessageAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      });
-      await db.insert(messages).values([
-        {
-          id: newId(),
-          conversationId: conv3Id,
-          workspaceId: wsId,
-          senderType: "contact",
-          body: "My issue has been resolved, thank you!",
-          createdAt: new Date(Date.now() - 2.5 * 60 * 60 * 1000),
-        },
-        {
-          id: newId(),
-          conversationId: conv3Id,
-          workspaceId: wsId,
-          senderType: "agent",
-          body: "Great! Glad we could help. Have a nice day!",
-          createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        },
-      ]);
-
-      return void res.status(201).json({
-        ok: true,
-        contactId,
-        conversations: [
-          { id: conv1Id, status: "open", channel: "chat" },
-          { id: conv2Id, status: "snoozed", channel: "email", snoozedUntil: snoozeUntil },
-          { id: conv3Id, status: "resolved", channel: "chat" },
-        ],
-      });
-    } catch (err) {
-      console.error("[seed]", err);
-      return void res.status(500).json({ error: "seed failed" });
-    }
-  });
+  app.use("/api/dev", devRouter);
 }
 
 // Snooze sweeper: reopen snoozed conversations whose snoozedUntil has passed,
