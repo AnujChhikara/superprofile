@@ -30,7 +30,6 @@ import {
   MessageSquare,
   ChevronDown,
   LogOut,
-  Code2,
   Users,
 } from "lucide-react";
 

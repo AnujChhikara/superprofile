@@ -11,6 +11,7 @@ import {
 } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../auth/middleware.js";
+import { articleText } from "../lib/sanitize.js";
 
 // Fixed identifiers so the seed is idempotent and /demo can find the workspace.
 const DEMO_WS = "demo-acme-ws";
@@ -76,8 +77,8 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
 
     const art = (
       title: string, slug: string, categoryId: string,
-      bodyHtml: string, bodyText: string,
-    ) => ({ id: newId(), workspaceId: DEMO_WS, categoryId, title, slug, bodyHtml, bodyText, status: "published" as const });
+      bodyHtml: string,
+    ) => ({ id: newId(), workspaceId: DEMO_WS, categoryId, title, slug, bodyHtml, bodyText: articleText(bodyHtml), status: "published" as const });
 
     await db.insert(kbArticles).values([
       // ── Getting Started ──────────────────────────────────────────────
@@ -91,7 +92,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
 <p>We support Stripe, Razorpay, and PayPal. Go to <strong>Settings → Payments</strong> to connect your preferred gateway.</p>
 <h2>Step 4: Share your store link</h2>
 <p>Your default store URL is <code>yourname.rapidstore.io</code>. You can connect a custom domain anytime from Settings → Domains.</p>`,
-        "Welcome to Rapid Commerce. Sign up add products connect payments share store link. 14-day free trial no credit card required.",
       ),
 
       art("How to reset your password", "reset-password", catGetting,
@@ -108,7 +108,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
 <h2>Change your password while logged in</h2>
 <p>Go to <strong>Account → Security → Change Password</strong>. You will need to enter your current password to confirm the change.</p>
 <p>If you did not receive the reset email, check your spam folder or contact support at <strong>support@rapidcommerce.io</strong>.</p>`,
-        "Reset password: click Forgot password on login page, enter email, receive reset link valid 1 hour. Change password while logged in via Account Security Change Password. Check spam if email not received.",
       ),
 
       art("How to add and manage team members", "team-members", catGetting,
@@ -128,7 +127,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
   <li><strong>Pro</strong> — up to 5 team members.</li>
   <li><strong>Enterprise</strong> — unlimited team members.</li>
 </ul>`,
-        "Invite team members at Settings Team Invite Member. Roles: Admin full access, Agent orders and support only. Remove member from Settings Team. Starter plan 1 member. Pro plan 5 members. Enterprise unlimited.",
       ),
 
       art("How to connect a custom domain", "custom-domain", catGetting,
@@ -141,7 +139,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
   <li>Click <strong>Verify</strong>. DNS changes can take up to 48 hours to propagate.</li>
 </ol>
 <p>Once verified, an SSL certificate is provisioned automatically and your store is live on your domain.</p>`,
-        "Custom domain: add domain in Settings Domains, add CNAME DNS record pointing to stores.rapidcommerce.io, click verify. DNS up to 48 hours. SSL auto-provisioned.",
       ),
 
       // ── Orders & Shipping ────────────────────────────────────────────
@@ -157,7 +154,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
 </ol>
 <h2>Tracking not updating?</h2>
 <p>Tracking information can take up to <strong>24 hours</strong> to appear after the shipment label is created. If it has been more than 48 hours with no update, contact our support team with your order number.</p>`,
-        "Track order via shipping confirmation email with tracking number or via My Orders in account. Tracking takes up to 24 hours to appear after label creation. Contact support if no update after 48 hours.",
       ),
 
       art("Shipping & Delivery", "shipping-delivery", catOrders,
@@ -175,7 +171,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
 </ul>
 <h2>Delays</h2>
 <p>During peak seasons (Diwali, Christmas, New Year sales) please allow 1–2 extra business days. We will notify you by email if your order is significantly delayed.</p>`,
-        "Shipping India: Standard 3 to 5 days free above 999 rupees, Express 1 to 2 days 149 rupees, Same-day metro cities 299 rupees. International: Standard 7 to 14 days, Express 3 to 5 days. Delays during peak seasons add 1 to 2 days.",
       ),
 
       art("How to edit or cancel an order", "edit-cancel-order", catOrders,
@@ -191,7 +186,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
 <p>Address changes, size/colour changes, or quantity adjustments must be requested via support <strong>within 1 hour</strong> of placing the order. Contact us at <strong>support@rapidcommerce.io</strong> or via live chat immediately.</p>
 <h2>Refund on cancellation</h2>
 <p>Cancelled order refunds are processed within <strong>3–5 business days</strong> to your original payment method.</p>`,
-        "Cancel order before dispatch via My Orders Cancel Order. If cancel greyed out order already dispatched initiate return. Edit order address size quantity within 1 hour of placing via support. Cancellation refund in 3 to 5 business days.",
       ),
 
       art("Payment methods accepted", "payment-methods", catOrders,
@@ -208,7 +202,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
 </ul>
 <h2>Payment security</h2>
 <p>All transactions are encrypted with 256-bit SSL. We are PCI-DSS compliant. We never store your card details on our servers.</p>`,
-        "Payment methods: Visa Mastercard RuPay Amex credit debit cards, UPI Google Pay PhonePe Paytm BHIM, Net banking, Wallets Paytm Amazon Pay, BNPL ZestMoney LazyPay Simpl, PayPal Stripe international, Cash on Delivery select pin codes. PCI-DSS compliant 256-bit SSL.",
       ),
 
       // ── Returns & Refunds ────────────────────────────────────────────
@@ -232,7 +225,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
 </ul>
 <h2>Damaged or wrong items</h2>
 <p>If you received a damaged or incorrect item, contact us within <strong>48 hours of delivery</strong> with a photo. We will send a replacement or issue a full refund at no cost to you — no need to return the item.</p>`,
-        "Refund policy: 30-day refund window from purchase date. Full refund within 30 days. Ship physical items back within 7 days of approval. Refund in 5 to 7 business days to original payment method. Non-refundable: digital downloads activated, gift cards, final sale, perishables. Damaged or wrong item contact within 48 hours of delivery with photo for replacement or full refund.",
       ),
 
       art("How long does a refund take?", "refund-timeline", catReturns,
@@ -250,7 +242,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
 <p>For cancelled orders (before dispatch), the timeline starts immediately once the cancellation is confirmed.</p>
 <h2>Still waiting?</h2>
 <p>If your refund has not arrived after the maximum timeframe, contact us at <strong>support@rapidcommerce.io</strong> with your order number and we will investigate immediately.</p>`,
-        "Refund timeline: Credit debit card 5 to 7 business days. UPI net banking 3 to 5 business days. Wallets 1 to 2 business days. COD store credit or NEFT 7 to 10 business days. PayPal Stripe 5 to 10 business days. For returns clock starts when item received and inspected. Contact support if refund not arrived after maximum timeframe.",
       ),
 
       art("How to return a product", "return-process", catReturns,
@@ -271,7 +262,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
 </ol>
 <h2>Return shipping cost</h2>
 <p>If the return is due to our error (wrong or damaged item), we cover the return shipping cost. For all other returns, the customer is responsible for return shipping charges.</p>`,
-        "Return product within 30 days of purchase unused unwashed original packaging with tags. Contact support get RMA number within 24 hours. Pack securely ship to Rapid Commerce Returns 14 MG Road Bangalore 560001. Share courier tracking. Return shipping free if our error, customer pays for other returns.",
       ),
 
       // ── Billing & Plans ──────────────────────────────────────────────
@@ -301,7 +291,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
   <li>Custom integrations and API access.</li>
 </ul>
 <p>All plans include a <strong>14-day free trial</strong>. No credit card required to start.</p>`,
-        "Pricing: Starter free 14 days then 999 rupees per month 1 store 100 products 2% transaction fee. Pro 2499 per month or 23990 per year unlimited products 0% transaction fee 5 team members custom domain. Enterprise custom pricing unlimited stores dedicated account manager 24/7 SLA support.",
       ),
 
       art("Understanding your invoice", "understanding-invoice", catBilling,
@@ -317,7 +306,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
 <p>Go to <strong>Settings → Billing → Invoice History</strong> to download PDF copies of all past invoices. GST-compliant invoices are available for all Indian accounts.</p>
 <h2>Failed payments</h2>
 <p>If a payment fails, we retry over 3 days. If still unpaid after 7 days, your store is paused until the invoice is settled. You will receive email reminders at each step.</p>`,
-        "Invoices generated 1st of each month. Plan charge transaction fees 2% Starter 0% Pro Enterprise. GST 18% on Indian accounts. Download PDF invoices from Settings Billing Invoice History. Failed payments retried 3 days store paused after 7 days.",
       ),
 
       art("Upgrading or downgrading your plan", "change-plan", catBilling,
@@ -328,7 +316,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
 <p>When you downgrade, the change takes effect at the start of your next billing cycle. You keep your current plan's features until then.</p>
 <h2>Annual plans</h2>
 <p>Annual plans are billed upfront and save you <strong>20%</strong> compared to monthly billing. If you cancel an annual plan within 30 days of renewal, you are eligible for a prorated refund for unused months.</p>`,
-        "Change plan at Settings Billing Change Plan. Upgrade charged prorated immediately. Downgrade takes effect next billing cycle. Annual plans save 20% billed upfront. Cancel annual within 30 days of renewal eligible prorated refund.",
       ),
 
       art("Cancelling your subscription", "cancel-subscription", catBilling,
@@ -348,7 +335,6 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
 <h2>Refunds on cancellation</h2>
 <p>Monthly plans: no refund — you keep access until the end of the current period.<br/>
 Annual plans: if cancelled within 30 days of the renewal date, you receive a prorated refund for unused months.</p>`,
-        "Cancel subscription at Settings Billing Cancel Subscription. Cancel immediately or end of billing period. Store offline end of paid period. Data retained 30 days then permanently deleted. Monthly no refund. Annual cancelled within 30 days of renewal get prorated refund unused months.",
       ),
 
       // ── Policies & Company ───────────────────────────────────────────
@@ -371,7 +357,6 @@ Annual plans: if cancelled within 30 days of the renewal date, you receive a pro
 Sales: <strong>sales@rapidcommerce.io</strong><br/>
 Office: 14 MG Road, Bangalore 560001, India.<br/>
 Phone: +91 80 4567 8900 (Mon–Fri, 9am–6pm IST).</p>`,
-        "About Rapid Commerce all-in-one e-commerce platform India. Founded 2021 Bangalore 80 plus team. Storefronts SSL custom domains Indian international payments inventory order tracking marketing discount codes abandoned cart email campaigns 24/7 support. Contact support@rapidcommerce.io sales@rapidcommerce.io phone +91 80 4567 8900.",
       ),
 
       art("Privacy Policy", "privacy-policy", catCompany,
@@ -395,7 +380,6 @@ Phone: +91 80 4567 8900 (Mon–Fri, 9am–6pm IST).</p>`,
 </ul>
 <h2>Data retention</h2>
 <p>Active account data is retained while your account is open. After account deletion, data is purged within 30 days except where required by law (e.g. GST records are kept for 8 years).</p>`,
-        "Privacy policy collects name email phone shipping address. Payment processed by partners never stored. Data for orders support emails promotions with consent not sold. Rights: access correct delete data request at privacy@rapidcommerce.io within 30 days. Data retained while account active purged 30 days after deletion.",
       ),
 
       art("Terms of Service", "terms-of-service", catCompany,
@@ -412,7 +396,6 @@ Phone: +91 80 4567 8900 (Mon–Fri, 9am–6pm IST).</p>`,
 <p>We may suspend or terminate your account if you violate these terms. You may close your account at any time from Settings → Billing.</p>
 <h2>Governing law</h2>
 <p>These terms are governed by the laws of India. Any disputes are subject to the jurisdiction of courts in Bangalore, Karnataka.</p>`,
-        "Terms of service: use platform lawful e-commerce only no counterfeit illegal weapons. Keep credentials secure. Fees billed in advance non-refundable except refund policy. Retain ownership uploaded content. Account terminated for violations. Governed by Indian law courts Bangalore Karnataka.",
       ),
 
       art("Contact & Support Hours", "contact-support", catCompany,
@@ -429,7 +412,6 @@ Hours: Monday–Friday, 9am–6pm IST.</p>
 <p>Join thousands of Rapid Commerce sellers on our community forum at <strong>community.rapidcommerce.io</strong> for tips, templates, and peer support.</p>
 <h2>Status page</h2>
 <p>Check real-time platform uptime and incident reports at <strong>status.rapidcommerce.io</strong>.</p>`,
-        "Support: live chat 24/7 under 2 minutes. Email support@rapidcommerce.io 4 hours business days Mon-Fri 9am-9pm IST 12 hours weekends. Phone +91 80 4567 8900 Pro Enterprise only Mon-Fri 9am-6pm IST. Community forum community.rapidcommerce.io. Status page status.rapidcommerce.io.",
       ),
     ]);
 

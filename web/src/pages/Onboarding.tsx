@@ -46,7 +46,7 @@ export default function Onboarding() {
         body: JSON.stringify({ name: wsName }),
       }),
     onSuccess: (ws) => {
-      setActiveWorkspace({ id: ws.id, name: ws.name, slug: ws.slug, role: "admin" });
+      setActiveWorkspace({ id: ws.id, name: ws.name, slug: ws.slug, publicKey: ws.publicKey ?? "", role: "admin" });
       queryClient.invalidateQueries({ queryKey: ["me"] });
       refetch();
     },
