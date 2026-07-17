@@ -30,6 +30,7 @@ interface AuthCtx {
   setActiveWorkspace: (ws: WorkspaceRef) => void;
   isLoading: boolean;
   refetch: () => void;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthCtx | null>(null);
@@ -71,6 +72,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryClient.invalidateQueries({ queryKey: ["me"] });
   }, [queryClient]);
 
+  const signOut = useCallback(async () => {
+    await api("/api/auth/logout", { method: "POST" }).catch(() => {});
+    localStorage.removeItem("activeWorkspaceId");
+    queryClient.clear();
+    window.location.href = "/";
+  }, [queryClient]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -80,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setActiveWorkspace,
         isLoading,
         refetch,
+        signOut,
       }}
     >
       {children}

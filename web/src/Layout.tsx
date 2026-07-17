@@ -29,6 +29,7 @@ import {
   Globe,
   MessageSquare,
   ChevronDown,
+  LogOut,
 } from "lucide-react";
 
 const navItems = [
@@ -40,7 +41,7 @@ const navItems = [
 ];
 
 function AppSidebar() {
-  const { user, workspaces, activeWorkspace, setActiveWorkspace } = useAuth();
+  const { user, workspaces, activeWorkspace, setActiveWorkspace, signOut } = useAuth();
 
   return (
     <Sidebar>
@@ -114,20 +115,39 @@ function AppSidebar() {
 
       <SidebarFooter className="px-3 py-3">
         {user && (
-          <div className="flex items-center gap-3">
-            <Avatar className="size-8 shrink-0">
-              <AvatarImage src={user.avatarUrl || ""} alt={user.name} />
-              <AvatarFallback>
-                {user.name?.charAt(0)?.toUpperCase() ?? "?"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">{user.name}</div>
-              <div className="truncate text-xs text-muted-foreground">
-                {user.email}
-              </div>
-            </div>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex w-full items-center gap-3 rounded-md px-1 py-1.5 hover:bg-sidebar-accent transition-colors">
+                <Avatar className="size-8 shrink-0">
+                  <AvatarImage src={user.avatarUrl || ""} alt={user.name} />
+                  <AvatarFallback>
+                    {user.name?.charAt(0)?.toUpperCase() ?? "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1 text-left">
+                  <div className="truncate text-sm font-medium">{user.name}</div>
+                  <div className="truncate text-xs text-muted-foreground">{user.email}</div>
+                </div>
+                <ChevronDown className="size-4 shrink-0 opacity-50" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start" className="w-56">
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium">{user.name}</span>
+                  <span className="text-xs text-muted-foreground">{user.email}</span>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => signOut()}
+                className="text-destructive focus:text-destructive cursor-pointer"
+              >
+                <LogOut className="size-4" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </SidebarFooter>
     </Sidebar>
