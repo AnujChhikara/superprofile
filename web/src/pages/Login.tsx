@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/button";
+import { Inbox, Sparkles, BookOpen } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_ORIGIN ?? "http://localhost:3000";
 
 const FEATURES = [
-  { icon: "📥", label: "Inbox" },
-  { icon: "✨", label: "AI Drafts" },
-  { icon: "📚", label: "Knowledge Base" },
+  { icon: Inbox, label: "Inbox" },
+  { icon: Sparkles, label: "AI Drafts" },
+  { icon: BookOpen, label: "Knowledge Base" },
 ] as const;
 
 export default function Login() {
@@ -30,8 +31,7 @@ export default function Login() {
           className="rounded-2xl border bg-card p-8"
           style={{
             borderColor: "oklch(1 0 0 / 0.07)",
-            boxShadow:
-              "0 0 0 1px oklch(0.511 0.229 277 / 0.12), 0 24px 48px -12px oklch(0 0 0 / 0.5)",
+            boxShadow: "0 8px 40px -8px oklch(0 0 0 / 0.4), 0 0 0 1px oklch(1 0 0 / 0.04)",
           }}
         >
           {/* Logo mark */}
@@ -49,12 +49,13 @@ export default function Login() {
 
           {/* Feature pills — shows what the product is before asking to sign in */}
           <div className="mb-6 flex flex-wrap gap-2">
-            {FEATURES.map((f) => (
+            {FEATURES.map(({ icon: Icon, label }) => (
               <span
-                key={f.label}
+                key={label}
                 className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground"
               >
-                {f.icon} {f.label}
+                <Icon className="size-3" />
+                {label}
               </span>
             ))}
           </div>
