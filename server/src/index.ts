@@ -26,7 +26,7 @@ import { kbRouter } from "./routes/kb.js";
 import { kbPublicApiRouter, kbPublicRouter } from "./routes/kbPublic.js";
 import { summariesRouter } from "./routes/summaries.js";
 import { domainsRouter, customDomainMiddleware } from "./routes/domains.js";
-import { devRouter } from "./routes/dev.js";
+import { devRouter, DEMO_WS } from "./routes/dev.js";
 import { cannedRouter } from "./routes/canned.js";
 import { analyticsRouter } from "./routes/analytics.js";
 import { handleInbound } from "./email/inbound.js";
@@ -159,13 +159,29 @@ app.get("/widget/frame", (_req, res) => {
   });
 });
 // Demo landing page with the seeded demo workspace key injected.
-app.get("/demo", async (_req, res) => {
+app.get("/demo", async (req, res) => {
   try {
     let html = readFileSync(path.join(publicDir, "demo.html"), "utf8");
-    const demo = (
-      await db.select().from(workspaces).where(eq(workspaces.slug, "acme"))
-    )[0];
-    if (demo) html = html.replaceAll("pk_DEMO_KEY", demo.publicKey);
+    // Install the widget for the workspace named in ?ws=<publicKey>, so the demo
+    // page reflects whichever workspace the agent launched it from. The key is
+    // looked up in the DB and we inject the STORED value — never the raw query
+    // string — which both validates it and avoids reflected XSS. Falls back to
+    // the seeded demo workspace (by stable id) when ?ws is absent or unknown.
+    const wsKey = typeof req.query.ws === "string" ? req.query.ws : null;
+    let workspace = wsKey
+      ? (
+          await db
+            .select()
+            .from(workspaces)
+            .where(eq(workspaces.publicKey, wsKey))
+        )[0]
+      : undefined;
+    if (!workspace) {
+      workspace = (
+        await db.select().from(workspaces).where(eq(workspaces.id, DEMO_WS))
+      )[0];
+    }
+    if (workspace) html = html.replaceAll("pk_DEMO_KEY", workspace.publicKey);
     res.type("html").send(html);
   } catch {
     res.status(404).send("demo not built");

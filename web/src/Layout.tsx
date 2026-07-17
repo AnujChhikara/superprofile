@@ -109,12 +109,19 @@ function AppSidebar() {
         <SidebarMenu>
           {navItems.map((item) => {
             const Icon = item.icon;
+            // External links (the /demo page) carry the active workspace's public
+            // key so the demo installs the widget for THIS workspace — same
+            // mechanism as the real embed snippet, just launched from the sidebar.
+            const externalHref =
+              item.external && activeWorkspace
+                ? `${item.href}?ws=${encodeURIComponent(activeWorkspace.publicKey)}`
+                : item.href;
             return (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton asChild size="default">
                   {item.external ? (
                     <a
-                      href={item.href}
+                      href={externalHref}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sidebar-foreground"

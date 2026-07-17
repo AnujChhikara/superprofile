@@ -13,8 +13,9 @@ import { eq } from "drizzle-orm";
 import { requireAuth } from "../auth/middleware.js";
 import { articleText } from "../lib/sanitize.js";
 
-// Fixed identifiers so the seed is idempotent and /demo can find the workspace.
-const DEMO_WS = "demo-acme-ws";
+// Fixed identifiers so the seed is idempotent and /demo can find the exact same
+// workspace the evaluator sees in their inbox (resolved by id, never by slug).
+export const DEMO_WS = "demo-acme-ws";
 export const DEMO_PUBLIC_KEY = "pk_rapidco_demo_000000000000000000";
 
 export const devRouter = Router();
@@ -25,7 +26,9 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
   try {
     const userId = req.user!.id;
 
-    // 1) Workspace (upsert by fixed id).
+    // 1) Workspace (upsert by fixed id). Always normalize name/slug/publicKey so
+    // a re-seed heals any legacy row (e.g. an old "acme" workspace) — this is
+    // what keeps /demo and the seeded inbox pointing at the SAME workspace.
     const existing = (
       await db.select().from(workspaces).where(eq(workspaces.id, DEMO_WS))
     )[0];
@@ -36,6 +39,15 @@ devRouter.post("/seed", requireAuth, async (req, res) => {
         slug: "rapid_commerce",
         publicKey: DEMO_PUBLIC_KEY,
       });
+    } else {
+      await db
+        .update(workspaces)
+        .set({
+          name: "Rapid Commerce",
+          slug: "rapid_commerce",
+          publicKey: DEMO_PUBLIC_KEY,
+        })
+        .where(eq(workspaces.id, DEMO_WS));
     }
 
     // 2) Membership for the caller.
