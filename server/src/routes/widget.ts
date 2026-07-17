@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import crypto from "crypto";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { db } from "../db/client.js";
 import { workspaces, contacts } from "../db/schema.js";
 import { and, eq } from "drizzle-orm";
@@ -26,27 +27,28 @@ widgetRouter.use((_req, res, next) => {
 });
 
 // ---- rate limit: 60 req/min per IP + workspaceKey ----
-const hits = new Map<string, number[]>();
-widgetRouter.use((req, res, next) => {
-  const key =
-    (req.ip ?? "?") +
-    "|" +
-    ((req.body?.workspaceKey as string) ??
-      (req.query.workspaceKey as string) ??
-      "?");
-  const now = Date.now();
-  const win = 60_000;
-  const arr = (hits.get(key) ?? []).filter((t) => now - t < win);
-  arr.push(now);
-  hits.set(key, arr);
-  // Evict stale keys.
-  for (const [k, ts] of hits) {
-    if (now - (ts[ts.length - 1] ?? 0) >= win) hits.delete(k);
-  }
-  if (arr.length > 60)
-    return void res.status(429).json({ error: "rate limit exceeded" });
-  next();
-});
+// express-rate-limit, keyed on client IP + workspaceKey so one noisy tenant or
+// IP can't exhaust another's budget. In-memory store (single instance); the
+// at-scale plan is a shared Redis store — see README.
+widgetRouter.use(
+  rateLimit({
+    windowMs: 60_000,
+    limit: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => !!process.env.VITEST,
+    keyGenerator: (req) => {
+      const ip = ipKeyGenerator(req.ip ?? "");
+      const key =
+        (req.body?.workspaceKey as string) ??
+        (req.query.workspaceKey as string) ??
+        "?";
+      return `${ip}|${key}`;
+    },
+    handler: (_req, res) =>
+      void res.status(429).json({ error: "rate limit exceeded" }),
+  })
+);
 
 async function workspaceByKey(publicKey: string) {
   return (

@@ -328,6 +328,14 @@ export function isAgentOnline(workspaceId: string): boolean {
   return (agentSocketsByWs.get(workspaceId)?.size ?? 0) > 0;
 }
 
+// Close all sockets and the Socket.io server — used during graceful shutdown so
+// in-flight connections drain before the process exits.
+export async function closeSocket(): Promise<void> {
+  if (!io) return;
+  await new Promise<void>((resolve) => io!.close(() => resolve()));
+  io = null;
+}
+
 // ---- emit helpers used by events.ts subscribers ----
 export function emitToWorkspace<E extends keyof ServerEvents>(
   workspaceId: string,

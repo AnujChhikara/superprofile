@@ -1,12 +1,20 @@
-import express from "express";
+import "express-async-errors"; // route async throws → error middleware (Express 4)
+import express, { type Request, type Response } from "express";
 import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import { readFileSync } from "fs";
+import { randomUUID } from "crypto";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import { pinoHttp } from "pino-http";
 import { env } from "./env.js";
+import { logger } from "./lib/log.js";
+import { errorHandler, notFoundHandler } from "./lib/http.js";
+import { closeSocket } from "./realtime/socket.js";
+import { pool } from "./db/client.js";
 import { checkOrigin } from "./auth/middleware.js";
 import { authRouter, meRouter } from "./routes/auth.js";
 import { workspacesRouter } from "./routes/workspaces.js";
@@ -39,6 +47,25 @@ import {
 export const app = express();
 export const httpServer = http.createServer(app);
 app.set("trust proxy", 1);
+// Structured request logging + a per-request id (echoed back as x-request-id).
+// Handlers can use req.log; the error handler ties 5xx logs to the same id.
+app.use(
+  pinoHttp({
+    logger,
+    genReqId: (req, res) => {
+      const existing = req.headers["x-request-id"];
+      const id = (Array.isArray(existing) ? existing[0] : existing) || randomUUID();
+      res.setHeader("x-request-id", id);
+      return id;
+    },
+    autoLogging: { ignore: (req) => req.url === "/healthz" },
+    customLogLevel: (_req, res, err) => {
+      if (err || res.statusCode >= 500) return "error";
+      if (res.statusCode >= 400) return "warn";
+      return "info";
+    },
+  })
+);
 // Security headers. CSP/CORP/COEP disabled so the widget can be embedded on,
 // and its script loaded by, arbitrary third-party origins. The widget frame
 // route below further relaxes X-Frame-Options.
@@ -68,27 +95,25 @@ app.use(
   })
 );
 
-// In-memory rate limiter: 30 req/min/IP on /api/auth/*
-const authRateMap = new Map<string, number[]>();
-app.use("/api/auth", (req, res, next) => {
-  const ip = (req.ip ?? req.socket.remoteAddress ?? "unknown");
-  const now = Date.now();
-  const window = 60_000; // 1 minute
-  const limit = 30;
-  const timestamps = (authRateMap.get(ip) ?? []).filter(
-    (t) => now - t < window
-  );
-  timestamps.push(now);
-  authRateMap.set(ip, timestamps);
-  // Evict stale IP entries so the map doesn't grow unbounded.
-  for (const [k, ts] of authRateMap) {
-    if (now - (ts[ts.length - 1] ?? 0) >= window) authRateMap.delete(k);
-  }
-  if (timestamps.length > limit) {
-    return void res.status(429).json({ error: "rate limit exceeded" });
-  }
-  next();
-});
+// Rate limiting (express-rate-limit). Keyed on client IP (trust proxy is set so
+// req.ip is the real client behind Azure/Vercel). Same 429 shape the app and
+// web client already expect. Skipped under tests to keep them deterministic.
+// NOTE: in-memory store — correct at a single instance; the at-scale plan is a
+// shared Redis store (rate-limit-redis), documented in the README.
+const limiterBase = {
+  windowMs: 60_000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => !!process.env.VITEST,
+  handler: (_req: Request, res: Response) =>
+    void res.status(429).json({ error: "rate limit exceeded" }),
+};
+// Strict limiter for auth (login/callback) — brute-force / abuse guard.
+const authLimiter = rateLimit({ ...limiterBase, limit: 30 });
+// General limiter for the authenticated dashboard API. Mounted just before the
+// CSRF check below, so the earlier-mounted widget/public routes (cross-origin,
+// high-fanout) are unaffected and keep their own limiter.
+const apiLimiter = rateLimit({ ...limiterBase, limit: 300 });
 
 app.get("/healthz", (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
@@ -147,11 +172,15 @@ app.get("/demo", async (_req, res) => {
   }
 });
 
+// General rate limit for the authenticated dashboard API (widget/public routes
+// mounted earlier are unaffected and keep their own limiter).
+app.use("/api", apiLimiter);
+
 // CSRF guard for all /api mutating requests
 app.use("/api", checkOrigin);
 
-// Auth routes
-app.use("/api/auth", authRouter);
+// Auth routes (stricter limiter on top of the general one).
+app.use("/api/auth", authLimiter, authRouter);
 app.use("/api", meRouter); // GET /api/me
 
 // Workspace + team routes
@@ -208,7 +237,7 @@ if (env.DEMO_MODE) {
       });
       return void res.json({ ok: true });
     } catch (err) {
-      console.error("[simulate-inbound]", err);
+      req.log.error({ err }, "simulate-inbound failed");
       return void res.status(500).json({ error: "simulate failed" });
     }
   });
@@ -218,6 +247,13 @@ if (env.DEMO_MODE) {
 if (env.DEMO_MODE) {
   app.use("/api/dev", devRouter);
 }
+
+// ---- Terminal middleware (must come after every route) ----
+// Unmatched /api paths → JSON 404 (same shape the web client parses). Other
+// unmatched paths (KB/widget/static) already 404 via their own handlers.
+app.use("/api", notFoundHandler);
+// Central error handler — the single place errors become responses.
+app.use(errorHandler);
 
 // Snooze sweeper: reopen snoozed conversations whose snoozedUntil has passed,
 // then emit conversation:updated per reopened row so open inboxes update live.
@@ -251,11 +287,46 @@ if (process.env.VITEST === undefined) {
         });
       }
     } catch (err) {
-      console.error("[snooze-sweeper]", err);
+      logger.error({ err }, "snooze-sweeper failed");
     }
   }, 60_000);
   sweeper.unref();
 
   initSocket(httpServer);
-  httpServer.listen(env.PORT, () => console.log(`listening :${env.PORT}`));
+  httpServer.listen(env.PORT, () => logger.info({ port: env.PORT }, "listening"));
+
+  // ---- Graceful shutdown ----
+  // On SIGTERM/SIGINT: stop the sweeper, drain sockets, close the HTTP server,
+  // then the DB pool — so in-flight work finishes before the process exits.
+  let shuttingDown = false;
+  async function shutdown(signal: string) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info({ signal }, "graceful shutdown started");
+    clearInterval(sweeper);
+    // Hard cap: exit anyway if draining hangs.
+    const force = setTimeout(() => {
+      logger.error("graceful shutdown timed out — forcing exit");
+      process.exit(1);
+    }, 10_000);
+    force.unref();
+    try {
+      await closeSocket();
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+      await pool.end();
+      logger.info("graceful shutdown complete");
+      process.exit(0);
+    } catch (err) {
+      logger.error({ err }, "error during shutdown");
+      process.exit(1);
+    }
+  }
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+  process.on("unhandledRejection", (reason) =>
+    logger.error({ reason }, "unhandledRejection")
+  );
+  process.on("uncaughtException", (err) =>
+    logger.error({ err }, "uncaughtException")
+  );
 }

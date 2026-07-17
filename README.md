@@ -204,6 +204,8 @@ Single Express process holds REST, Socket.io, SSR KB, and widget assets. All ten
 | AI | OpenAI gpt-4o-mini | Cost-efficient; 10s timeout, retry on 429/5xx, graceful degradation |
 | Infra | Azure App Service + Vercel | App Service for custom domain cert provisioning via ARM/MSI |
 | Validation | zod + sanitize-html | zod at every trust boundary; HTML allowlist for KB content |
+| Logging | pino + pino-http | Structured JSON logs, per-request id (`x-request-id`), cookies/tokens redacted |
+| Rate limiting | express-rate-limit | Per-IP on the API/auth, per-IP+workspace-key on the widget; consistent 429 shape |
 
 ---
 
@@ -284,6 +286,17 @@ Single Express process holds REST, Socket.io, SSR KB, and widget assets. All ten
 
 ---
 
+## Production readiness
+
+- **Input validation** — zod at every trust boundary: request bodies, the SendGrid inbound webhook payload, socket event payloads, and environment variables (validated at boot in `env.ts`). Invalid input returns `400 { error, details }`.
+- **Consistent errors** — a single central error handler (`lib/http.ts`) is the only place errors become responses. Every error is `{ error: string, details? }` with an appropriate status code; the web client parses exactly this shape. `throw new HttpError(status, msg)` from anywhere; async route rejections are caught (`express-async-errors`) so nothing hangs or leaks a stack trace. Unmatched `/api` paths return a JSON `404`. 5xx responses are opaque (`internal server error`) — internals are logged, never sent to the client.
+- **Structured logging** — `pino` + `pino-http`: one JSON log line per request with a correlation id (returned as `x-request-id`; honored if the caller sends one). 4xx→warn, 5xx→error. Cookies, auth headers, tokens, and workspace keys are redacted. Logs write synchronously so nothing is lost on shutdown.
+- **Rate limiting** — `express-rate-limit`: 300 req/min/IP on the dashboard API, 30 req/min/IP on `/api/auth` (brute-force guard), 60 req/min per IP+workspace-key on the widget. All return the same `429 { error: "rate limit exceeded" }` and standard `RateLimit-*` headers.
+- **Graceful shutdown** — on `SIGTERM`/`SIGINT` the process stops the background sweeper, drains Socket.io, closes the HTTP server, then the Postgres pool (10s hard cap). `unhandledRejection`/`uncaughtException` are logged.
+- **Graceful degradation** — AI failures return 503 or no-op; email send failures surface as an in-thread system message; the app stays fully usable without AI or outbound email.
+
+---
+
 ## Local setup
 
 **Prerequisites**: Node 20+, pnpm 9+, Postgres 16
@@ -340,6 +353,7 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/support \
 | Limitation | At-scale fix |
 |---|---|
 | Single process, in-memory socket presence + AI throttle | Socket.io Redis adapter + shared Redis for maps |
+| Rate limiter uses an in-memory store (per instance) | Shared store via `rate-limit-redis` so limits hold across instances |
 | Email send + AI are inline (fire-and-forget) | BullMQ / SQS queue with retries + dead-letter queue |
 | All reads hit the primary | Read replicas for KB public site + inbox lists |
 | Postgres FTS | OpenSearch / Typesense if KB grows large or semantic search needed |

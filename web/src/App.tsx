@@ -9,7 +9,6 @@ import Onboarding from "./pages/Onboarding.js";
 import Inbox from "./pages/Inbox.js";
 import KnowledgeBase from "./pages/KnowledgeBase.js";
 import Analytics from "./pages/Analytics.js";
-import Playground from "./pages/Playground.js";
 import TeamSettings from "./pages/Settings/Team.js";
 import Domains from "./pages/Settings/Domains.js";
 import CannedResponses from "./pages/Settings/Canned.js";
@@ -55,7 +54,6 @@ function AppRoutes() {
           <Route path="/inbox" element={<Inbox />} />
           <Route path="/knowledge" element={<KnowledgeBase />} />
           <Route path="/analytics" element={<Analytics />} />
-          <Route path="/playground" element={<Playground />} />
           <Route path="/settings" element={<WidgetSettings />} />
           <Route path="/settings/team" element={<TeamSettings />} />
           <Route path="/settings/domains" element={<Domains />} />
