@@ -12,7 +12,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ["tslib"],
+    exclude: ["react-remove-scroll"],
   },
   build: {
     rollupOptions: {
