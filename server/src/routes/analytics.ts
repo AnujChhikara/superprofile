@@ -202,7 +202,7 @@ analyticsRouter.get("/", async (req, res) => {
         GROUP BY c.resolved_at::date
       )
       SELECT
-        to_char(d, 'YYYY-MM-DD') AS date,
+        to_char(days.d, 'YYYY-MM-DD') AS date,
         coalesce(cr.n, 0) AS created,
         coalesce(rs.n, 0) AS resolved
       FROM (
