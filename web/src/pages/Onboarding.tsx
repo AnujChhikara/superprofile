@@ -2,6 +2,12 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api.js";
 import { useAuth } from "../auth.js";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 
 interface Workspace {
   id: string;
@@ -23,9 +29,7 @@ export default function Onboarding() {
         body: JSON.stringify({ name: wsName }),
       }),
     onSuccess: (ws) => {
-      // Set as active workspace
       setActiveWorkspace({ id: ws.id, name: ws.name, slug: ws.slug, role: "admin" });
-      // Invalidate /me so workspaces list updates
       queryClient.invalidateQueries({ queryKey: ["me"] });
       refetch();
     },
@@ -42,131 +46,50 @@ export default function Onboarding() {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.header}>
-          <span style={styles.emoji}>🚀</span>
-          <h1 style={styles.heading}>Create your workspace</h1>
-          <p style={styles.sub}>
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="text-center">
+          <div className="mb-4 block text-4xl">🚀</div>
+          <CardTitle className="text-2xl">Create your workspace</CardTitle>
+          <CardDescription>
             A workspace is where your team handles customer support. You can
             invite team members after setup.
-          </p>
-        </div>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="wsName">Workspace name</FieldLabel>
+                <Input
+                  id="wsName"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Acme Corp Support"
+                  autoFocus
+                  required
+                />
+              </Field>
+            </FieldGroup>
 
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <div style={styles.field}>
-            <label htmlFor="wsName" style={styles.label}>
-              Workspace name
-            </label>
-            <input
-              id="wsName"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Acme Corp Support"
-              style={styles.input}
-              autoFocus
-              required
-            />
-          </div>
+            {error && (
+              <Alert variant="destructive">
+                <AlertTriangle className="size-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-          {error && <p style={styles.error}>{error}</p>}
-
-          <button
-            type="submit"
-            style={{
-              ...styles.btn,
-              opacity: createWorkspace.isPending ? 0.7 : 1,
-            }}
-            disabled={createWorkspace.isPending || !name.trim()}
-          >
-            {createWorkspace.isPending ? "Creating…" : "Create workspace →"}
-          </button>
-        </form>
-      </div>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={createWorkspace.isPending || !name.trim()}
+            >
+              {createWorkspace.isPending ? "Creating…" : "Create workspace →"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    minHeight: "100vh",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#f9fafb",
-    fontFamily: "system-ui, -apple-system, sans-serif",
-  },
-  card: {
-    background: "#fff",
-    borderRadius: 12,
-    padding: "48px 40px",
-    boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
-    width: "100%",
-    maxWidth: 440,
-    boxSizing: "border-box",
-  },
-  header: {
-    textAlign: "center",
-    marginBottom: 32,
-  },
-  emoji: {
-    fontSize: 36,
-    display: "block",
-    marginBottom: 12,
-  },
-  heading: {
-    margin: "0 0 8px",
-    fontSize: 24,
-    fontWeight: 600,
-    color: "#111827",
-    letterSpacing: "-0.3px",
-  },
-  sub: {
-    margin: 0,
-    fontSize: 14,
-    color: "#6b7280",
-    lineHeight: 1.6,
-  },
-  form: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 16,
-  },
-  field: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: 500,
-    color: "#374151",
-  },
-  input: {
-    padding: "10px 14px",
-    border: "1px solid #e5e7eb",
-    borderRadius: 8,
-    fontSize: 15,
-    outline: "none",
-    color: "#111827",
-    boxSizing: "border-box",
-    width: "100%",
-  },
-  error: {
-    margin: 0,
-    color: "#ef4444",
-    fontSize: 13,
-  },
-  btn: {
-    padding: "12px 20px",
-    background: "#4f46e5",
-    color: "#fff",
-    border: "none",
-    borderRadius: 8,
-    fontSize: 15,
-    fontWeight: 600,
-    cursor: "pointer",
-    width: "100%",
-  },
-};
