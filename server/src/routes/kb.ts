@@ -2,12 +2,20 @@ import { Router } from "express";
 import { z } from "zod";
 import { db, newId } from "../db/client.js";
 import { kbArticles, kbCategories } from "../db/schema.js";
-import { and, eq, asc, desc } from "drizzle-orm";
+import { and, eq, asc, desc, sql } from "drizzle-orm";
 import { requireAuth, requireWorkspace } from "../auth/middleware.js";
 import { sanitizeArticleHtml, articleText } from "../lib/sanitize.js";
 
 export const kbRouter = Router();
 kbRouter.use(requireAuth, requireWorkspace());
+
+async function refreshSearchVector(id: string) {
+  await db.execute(sql`
+    UPDATE kb_articles
+    SET search_vector = to_tsvector('english', coalesce(title,'') || ' ' || coalesce(body_text,''))
+    WHERE id = ${id}
+  `);
+}
 
 function slugify(s: string): string {
   return (
@@ -90,6 +98,7 @@ kbRouter.post("/articles", async (req, res) => {
     bodyText,
     status: "draft",
   });
+  await refreshSearchVector(id);
   const row = (
     await db.select().from(kbArticles).where(eq(kbArticles.id, id))
   )[0];
@@ -126,6 +135,9 @@ kbRouter.patch("/articles/:id", async (req, res) => {
     patch.bodyText = articleText(parsed.data.bodyHtml);
   }
   await db.update(kbArticles).set(patch).where(eq(kbArticles.id, id));
+  if (parsed.data.title !== undefined || parsed.data.bodyHtml !== undefined) {
+    await refreshSearchVector(id);
+  }
   const row = (
     await db.select().from(kbArticles).where(eq(kbArticles.id, id))
   )[0];

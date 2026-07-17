@@ -9,7 +9,7 @@ import {
   kbCategories,
   kbArticles,
 } from "../db/schema.js";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { requireAuth } from "../auth/middleware.js";
 
 // Fixed identifiers so the seed is idempotent and /demo can find the workspace.
@@ -432,6 +432,13 @@ Hours: Monday–Friday, 9am–6pm IST.</p>
         "Support: live chat 24/7 under 2 minutes. Email support@rapidcommerce.io 4 hours business days Mon-Fri 9am-9pm IST 12 hours weekends. Phone +91 80 4567 8900 Pro Enterprise only Mon-Fri 9am-6pm IST. Community forum community.rapidcommerce.io. Status page status.rapidcommerce.io.",
       ),
     ]);
+
+    // Populate search vectors for all seeded articles so AI draft can find them.
+    await db.execute(sql`
+      UPDATE kb_articles
+      SET search_vector = to_tsvector('english', coalesce(title,'') || ' ' || coalesce(body_text,''))
+      WHERE workspace_id = ${DEMO_WS}
+    `);
 
     // 5) One starter contact + two minimal conversations so inbox is not empty.
     const demoContact = newId();
