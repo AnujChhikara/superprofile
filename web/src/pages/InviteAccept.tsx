@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 import { useAuth } from "../auth.js";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AlertTriangle } from "lucide-react";
 
 export default function InviteAccept() {
   const { token } = useParams<{ token: string }>();
@@ -52,88 +57,47 @@ export default function InviteAccept() {
 
   if (isLoading || status === "idle" || status === "accepting") {
     return (
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <p style={styles.text}>Accepting invite…</p>
-          <div style={styles.spinner} />
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Card className="w-full max-w-sm">
+          <CardContent className="flex flex-col items-center gap-4 pt-6">
+            <p className="text-base text-foreground">Accepting invite…</p>
+            <Skeleton className="size-8 rounded-full" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (status === "error") {
     return (
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <p style={styles.errorText}>Failed to accept invite</p>
-          <p style={styles.errorDetail}>{errorMsg}</p>
-          <button onClick={() => navigate("/")} style={styles.btn}>
-            Go home
-          </button>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Card className="w-full max-w-sm">
+          <CardContent className="flex flex-col gap-4 pt-6">
+            <Alert variant="destructive">
+              <AlertTriangle className="size-4" />
+              <AlertDescription className="ml-2">
+                Failed to accept invite
+              </AlertDescription>
+            </Alert>
+            <p className="text-sm text-muted-foreground">{errorMsg}</p>
+            <Button onClick={() => navigate("/")} className="w-full">
+              Go home
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <p style={styles.text}>Invite accepted! Redirecting…</p>
-      </div>
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <Card className="w-full max-w-sm">
+        <CardContent className="pt-6">
+          <p className="text-center text-base text-foreground">
+            Invite accepted! Redirecting…
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    minHeight: "100vh",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontFamily: "system-ui, -apple-system, sans-serif",
-    background: "#f9fafb",
-  },
-  card: {
-    background: "#fff",
-    borderRadius: 12,
-    padding: "48px 40px",
-    boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
-    textAlign: "center",
-    minWidth: 300,
-  },
-  text: {
-    fontSize: 16,
-    color: "#374151",
-    margin: 0,
-  },
-  errorText: {
-    fontSize: 16,
-    fontWeight: 600,
-    color: "#ef4444",
-    margin: "0 0 8px",
-  },
-  errorDetail: {
-    fontSize: 14,
-    color: "#6b7280",
-    margin: "0 0 20px",
-  },
-  btn: {
-    padding: "10px 20px",
-    background: "#4f46e5",
-    color: "#fff",
-    border: "none",
-    borderRadius: 8,
-    fontSize: 14,
-    cursor: "pointer",
-    fontWeight: 500,
-  },
-  spinner: {
-    margin: "20px auto 0",
-    width: 28,
-    height: 28,
-    border: "3px solid #e5e7eb",
-    borderTop: "3px solid #4f46e5",
-    borderRadius: "50%",
-    animation: "spin 0.8s linear infinite",
-  },
-};
