@@ -149,6 +149,7 @@ meRouter.get("/me", requireAuth, async (req, res) => {
       id: workspaces.id,
       name: workspaces.name,
       slug: workspaces.slug,
+      publicKey: workspaces.publicKey,
       role: memberships.role,
     })
     .from(memberships)
@@ -156,4 +157,11 @@ meRouter.get("/me", requireAuth, async (req, res) => {
     .where(eq(memberships.userId, user.id));
 
   res.json({ user, workspaces: membershipRows });
+});
+
+meRouter.patch("/me/name", requireAuth, async (req, res) => {
+  const name = String(req.body?.name ?? "").trim();
+  if (!name) return void res.status(400).json({ error: "name required" });
+  await db.update(users).set({ name }).where(eq(users.id, req.user!.id));
+  return void res.json({ ok: true });
 });

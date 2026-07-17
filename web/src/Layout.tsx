@@ -30,12 +30,15 @@ import {
   MessageSquare,
   ChevronDown,
   LogOut,
+  Code2,
+  Users,
 } from "lucide-react";
 
 const navItems = [
   { href: "/inbox", icon: Inbox, label: "Inbox" },
   { href: "/knowledge", icon: BookOpen, label: "Knowledge Base" },
-  { href: "/settings/team", icon: Settings, label: "Team" },
+  { href: "/settings", icon: Settings, label: "Settings" },
+  { href: "/settings/team", icon: Users, label: "Team" },
   { href: "/settings/domains", icon: Globe, label: "Domains" },
   { href: "/settings/canned", icon: MessageSquare, label: "Canned" },
 ];

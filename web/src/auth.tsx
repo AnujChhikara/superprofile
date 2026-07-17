@@ -20,6 +20,7 @@ export interface WorkspaceRef {
   id: string;
   name: string;
   slug: string;
+  publicKey: string;
   role: "admin" | "agent";
 }
 

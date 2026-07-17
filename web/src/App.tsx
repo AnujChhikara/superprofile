@@ -11,6 +11,7 @@ import KnowledgeBase from "./pages/KnowledgeBase.js";
 import TeamSettings from "./pages/Settings/Team.js";
 import Domains from "./pages/Settings/Domains.js";
 import CannedResponses from "./pages/Settings/Canned.js";
+import WidgetSettings from "./pages/Settings/Widget.js";
 import InviteAccept from "./pages/InviteAccept.js";
 
 function AppRoutes() {
@@ -51,6 +52,7 @@ function AppRoutes() {
           <Route index element={<Navigate to="/inbox" replace />} />
           <Route path="/inbox" element={<Inbox />} />
           <Route path="/knowledge" element={<KnowledgeBase />} />
+          <Route path="/settings" element={<WidgetSettings />} />
           <Route path="/settings/team" element={<TeamSettings />} />
           <Route path="/settings/domains" element={<Domains />} />
           <Route path="/settings/canned" element={<CannedResponses />} />
