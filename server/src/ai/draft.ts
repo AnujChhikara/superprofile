@@ -77,6 +77,7 @@ export async function generateDraft(
 
   let kb: Array<{ title: string; body: string }> = [];
   if (lastCustomer) {
+    console.log("[draft] workspaceId=%s query=%j", workspaceId, lastCustomer.body);
     const hits = await db.execute(sql`
       SELECT title, body_text
       FROM kb_articles
@@ -86,6 +87,7 @@ export async function generateDraft(
       ORDER BY ts_rank(search_vector, websearch_to_tsquery('english', ${lastCustomer.body})) DESC
       LIMIT 3
     `);
+    console.log("[draft] kb hits=%d", hits.rows.length);
     kb = (hits.rows as Array<{ title: string; body_text: string }>).map((r) => ({
       title: r.title,
       body: r.body_text,
