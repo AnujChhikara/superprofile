@@ -23,20 +23,23 @@ Everything you need to do before/during a live presentation.
 
 ### Step 1 — Seed demo data (30 seconds)
 1. Open **https://app.anujchhikara.com** and sign in with Google
-2. Open DevTools console (F12) and run:
+2. Open DevTools console (F12 → Console tab) and paste:
 ```js
 fetch('https://api.anujchhikara.com/api/dev/seed', {
   method: 'POST', credentials: 'include'
 }).then(r => r.json()).then(console.log)
 ```
-3. Switch to the **Rapid Commerce** workspace in the sidebar (top dropdown)
+3. You should see `{ ok: true, workspaceId: "demo-acme-ws", ... }` in the console
+4. Switch to the **Rapid Commerce** workspace in the sidebar dropdown
+
+> Re-seeding is safe and idempotent — run the same command again anytime to reset demo data to a clean state.
 
 ### Step 2 — Open these tabs before presenting
 | Tab | URL | Purpose |
 |---|---|---|
 | 1 | https://app.anujchhikara.com/inbox | Agent inbox |
 | 2 | https://api.anujchhikara.com/demo | Visitor widget |
-| 3 | https://kb.anujchhikara.com/acme | Public KB site |
+| 3 | https://kb.anujchhikara.com/rapid_commerce | Public KB site |
 | 4 | Gmail (any account) | Send a test email |
 
 ### Step 3 — Demo flow (5 minutes)
@@ -49,7 +52,7 @@ fetch('https://api.anujchhikara.com/api/dev/seed', {
 **Email channel (Gmail → Tab 1)**
 - Send email to `rapid_commerce@parse.anujchhikara.com` from Gmail
 - Tab 1 → new Email conversation appears in seconds
-- Reply from inbox → customer gets reply **from** `acme_corp@parse.anujchhikara.com`
+- Reply from inbox → customer gets reply **from** `rapid_commerce@parse.anujchhikara.com`
 - Reply to that email → threads back into the same conversation
 
 **AI features (Tab 1, any conversation)**
