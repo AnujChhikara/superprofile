@@ -14,13 +14,11 @@ export function buildDraftPrompt({
   summary,
   lastMessages,
   kbArticles: kb,
-  agentName,
   workspaceName,
 }: {
   summary: string | null;
   lastMessages: DraftMsg[];
   kbArticles: Array<{ title: string; body: string }>;
-  agentName: string;
   workspaceName: string;
 }): { system: string; user: string } {
   const hasKb = kb.length > 0;
@@ -32,7 +30,7 @@ RULES:
 2. Only use facts from the Knowledge Base. Do not invent prices, policies, or procedures not mentioned there.
 3. If the question is completely unrelated to anything in the Knowledge Base, reply: "Thanks for reaching out! I'll look into this and get back to you shortly."
 4. Write in a warm, concise, professional tone — 2 to 4 sentences is usually enough.
-5. Sign off as ${agentName}.`;
+5. Do NOT add a sign-off, signature, closing salutation (e.g. "Best regards"), or any agent or person name. End right after the last helpful sentence.`;
 
   const kbBlock = hasKb
     ? "--- KNOWLEDGE BASE ---\n" +
@@ -54,8 +52,7 @@ RULES:
 // Generate a grounded draft reply for a conversation.
 export async function generateDraft(
   workspaceId: string,
-  conversationId: string,
-  agentName: string
+  conversationId: string
 ): Promise<string> {
   const wsRow = (await db.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.id, workspaceId)))[0];
   const workspaceName = wsRow?.name ?? "Support";
@@ -108,7 +105,6 @@ export async function generateDraft(
     summary: summaryRow?.body ?? null,
     lastMessages,
     kbArticles: kb,
-    agentName,
     workspaceName,
   });
 

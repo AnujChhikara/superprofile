@@ -129,7 +129,9 @@ widgetRouter.post("/conversations", async (req, res) => {
   });
 
   // Ordered thread we hand back to the widget: visitor msg first, then the
-  // auto system messages (ack + optional KB suggestion).
+  // optional KB suggestion. The "someone will reply soon" acknowledgement is
+  // NOT persisted — the widget renders it client-side only while no agent has
+  // replied, so it never clutters the agent inbox or lingers after a reply.
   const messages = [];
 
   // 1) The visitor's first message.
@@ -141,16 +143,7 @@ widgetRouter.post("/conversations", async (req, res) => {
   });
   messages.push(message);
 
-  // 2) Auto acknowledgement (system).
-  const ack = await createMessage(who.wsId, {
-    conversationId: conversation.id,
-    senderType: "system",
-    // system messages have no sender; repo stores null (senderId ?? null).
-    body: "Thanks for reaching out — someone will reply soon.",
-  });
-  messages.push(ack);
-
-  // 3) Optional KB suggestion (system) — best-effort; never block the reply.
+  // 2) Optional KB suggestion (system) — best-effort; never block the reply.
   try {
     const kbHits = await searchArticles(who.wsId, parsed.data.body);
     if (kbHits[0]) {

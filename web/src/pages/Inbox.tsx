@@ -279,6 +279,11 @@ function ConversationList({
   const { data: conversations = [], isLoading } = useQuery<Conversation[]>({
     queryKey: ["conversations", channel, status, assigneeFilter],
     queryFn: () => api<Conversation[]>(`/api/conversations?${params}`),
+    // Always refetch when a tab/filter is (re)opened. Without this the global
+    // 30s staleTime can serve a cached list from before a new chat arrived —
+    // so a conversation shows under "Chat" (freshly fetched) but not "All".
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   if (isLoading) {
@@ -578,7 +583,7 @@ function ThreadPane({
           onKeyDown={handleKeyDown}
           placeholder="Type a reply… ( / for canned, Enter to send )"
           disabled={sendMutation.isPending}
-          className="min-h-[72px] flex-1 resize-none"
+          className="min-h-[72px] max-h-40 flex-1 resize-none px-3 py-2.5 leading-relaxed overflow-y-auto"
         />
         <div className="flex flex-col gap-1.5">
           <Tooltip>

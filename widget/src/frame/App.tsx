@@ -13,8 +13,8 @@ import {
 
 const BRAND = "#4f46e5";
 
-// Must match the server's auto-acknowledgement (server/src/routes/widget.ts).
-// Hidden once an agent replies.
+// Client-side only acknowledgement, rendered while the visitor is waiting for a
+// first agent reply. Not persisted — never stored as a message.
 const AUTO_ACK = "Thanks for reaching out — someone will reply soon.";
 
 function getVisitorToken(): string {
@@ -429,14 +429,19 @@ function Thread({
         {messages.length === 0 && (
           <div style={styles.muted}>Start the conversation below.</div>
         )}
+        {messages.map((m) => <Bubble key={m.id} m={m} />)}
         {(() => {
-          // Once a real agent has replied, drop the automated "we'll reply
-          // soon" acknowledgement — it's redundant next to a human answer.
+          // Client-side only acknowledgement: shown while the visitor has sent a
+          // message and no agent has replied yet. It is never persisted, so it
+          // disappears the instant an agent responds and never appears in the
+          // agent's inbox.
+          const hasVisitorMsg = messages.some((m) => m.senderType === "contact");
           const hasAgentReply = messages.some((m) => m.senderType === "agent");
-          const visible = hasAgentReply
-            ? messages.filter((m) => m.body !== AUTO_ACK)
-            : messages;
-          return visible.map((m) => <Bubble key={m.id} m={m} />);
+          return hasVisitorMsg && !hasAgentReply && !resolved ? (
+            <div style={{ ...styles.bubbleRow, justifyContent: "center" }}>
+              <div style={styles.systemMsg}>{AUTO_ACK}</div>
+            </div>
+          ) : null;
         })()}
         {agentTyping && (
           <div style={{ ...styles.bubbleRow, justifyContent: "flex-start" }}>

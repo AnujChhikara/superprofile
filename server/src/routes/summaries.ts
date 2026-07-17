@@ -72,7 +72,7 @@ summariesRouter.post("/:id/draft", async (req, res) => {
     return void res.status(404).json({ error: "conversation not found" });
   }
   try {
-    const draft = await generateDraft(wsId, id, req.user!.name);
+    const draft = await generateDraft(wsId, id);
     return void res.json({ draft });
   } catch (err) {
     console.error("[draft] failed:", err);

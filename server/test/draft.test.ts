@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildDraftPrompt } from "../src/ai/draft.js";
 
 describe("draft prompt", () => {
-  it("signs off as the agent and includes KB + transcript", () => {
+  it("forbids sign-offs / agent names and includes KB + transcript", () => {
     const { system, user } = buildDraftPrompt({
       summary: "Customer can't deploy.",
       lastMessages: [
@@ -10,9 +10,8 @@ describe("draft prompt", () => {
         { senderType: "agent", body: "what error?" },
       ],
       kbArticles: [{ title: "Deploy guide", body: "run acme deploy" }],
-      agentName: "Alex",
     });
-    expect(system).toContain("Sign off as Alex");
+    expect(system).toContain("Do NOT add a sign-off");
     expect(user).toContain("Customer can't deploy.");
     expect(user).toContain("Deploy guide");
     expect(user).toContain("CUSTOMER: my deploy fails");
@@ -24,7 +23,6 @@ describe("draft prompt", () => {
       summary: null,
       lastMessages: [{ senderType: "contact", body: "hi" }],
       kbArticles: [{ title: "Big", body: long }],
-      agentName: "Sam",
     });
     const longestRun = Math.max(
       0,
@@ -38,7 +36,6 @@ describe("draft prompt", () => {
       summary: null,
       lastMessages: [{ senderType: "contact", body: "hello" }],
       kbArticles: [],
-      agentName: "Sam",
     });
     expect(user).toContain("No relevant articles");
   });
