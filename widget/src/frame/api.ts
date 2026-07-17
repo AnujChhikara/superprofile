@@ -41,10 +41,11 @@ export function startConversation(
   visitorToken: string,
   body: string
 ) {
-  return post<{ conversation: WidgetConversation; message: WidgetMessage }>(
-    "/api/widget/conversations",
-    { workspaceKey, visitorToken, body }
-  );
+  return post<{
+    conversation: WidgetConversation;
+    message: WidgetMessage;
+    messages: WidgetMessage[];
+  }>("/api/widget/conversations", { workspaceKey, visitorToken, body });
 }
 
 export function sendMessage(

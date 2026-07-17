@@ -8,7 +8,11 @@ import { requireAuth, requireWorkspace } from "../auth/middleware.js";
 import { validateHostname, advanceDomain } from "../domains/service.js";
 import { checkDns } from "../domains/dnsCheck.js";
 import { getVerificationId, provisionHostname } from "../domains/azure.js";
-import { renderCustomDomainKb } from "./kbPublic.js";
+import {
+  renderCustomDomainKb,
+  findPublishedArticleBySlug,
+  categorySlugForArticle,
+} from "./kbPublic.js";
 
 const apiHost = new URL(env.API_ORIGIN).hostname;
 const kbHost = env.KB_HOST.split(":")[0];
@@ -208,12 +212,28 @@ async function workspaceForHost(host: string): Promise<any | null> {
 }
 
 // Express middleware: if the request host is an active custom domain, serve the
-// workspace's KB at "/" and "/:articleSlug". Otherwise fall through.
+// workspace's KB at "/" (home) and "/:categorySlug/:articleSlug" (article).
+// A legacy single-segment "/:articleSlug" is 301-redirected to its canonical
+// category path. Otherwise fall through.
 export const customDomainMiddleware: RequestHandler = async (req, res, next) => {
   const ws = await workspaceForHost(req.hostname);
   if (!ws) return next();
   const segments = req.path.split("/").filter(Boolean);
-  if (segments.length > 1) return next(); // only root + single article slug
-  const { status, html } = await renderCustomDomainKb(ws, segments[0]);
+
+  if (segments.length > 2) return next();
+
+  if (segments.length === 1) {
+    // Legacy single-article path → redirect to canonical /{category}/{article}.
+    const article = await findPublishedArticleBySlug(ws.id, segments[0]);
+    if (!article) return next();
+    const catSlug = await categorySlugForArticle(ws.id, article.categoryId);
+    return void res.redirect(301, `/${catSlug}/${article.slug}`);
+  }
+
+  const { status, html } = await renderCustomDomainKb(
+    ws,
+    segments[0],
+    segments[1]
+  );
   res.status(status).type("html").send(html);
 };

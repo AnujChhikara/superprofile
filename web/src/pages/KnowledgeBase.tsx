@@ -39,7 +39,7 @@ interface Article {
   updatedAt: string;
 }
 
-const API_ORIGIN = import.meta.env.VITE_API_ORIGIN ?? "http://localhost:3000";
+const KB_ORIGIN = import.meta.env.VITE_KB_ORIGIN ?? import.meta.env.VITE_API_ORIGIN ?? "http://localhost:3000";
 
 export default function KnowledgeBase() {
   const { activeWorkspace } = useAuth();
@@ -126,7 +126,7 @@ export default function KnowledgeBase() {
         {activeWorkspace && (
           <a
             className="border-t px-4 py-3 text-sm text-primary hover:underline"
-            href={`${API_ORIGIN}/${activeWorkspace.slug}`}
+            href={`${KB_ORIGIN}/${activeWorkspace.slug}`}
             target="_blank"
             rel="noreferrer"
           >

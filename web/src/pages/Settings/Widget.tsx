@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Copy, ExternalLink, Code2, BookOpen } from "lucide-react";
 
 const API_ORIGIN = import.meta.env.VITE_API_ORIGIN ?? "http://localhost:3000";
+const KB_ORIGIN = import.meta.env.VITE_KB_ORIGIN ?? import.meta.env.VITE_API_ORIGIN ?? "http://localhost:3000";
 
 export default function WidgetSettings() {
   const { user, activeWorkspace } = useAuth();
@@ -158,7 +159,7 @@ export default function WidgetSettings() {
             </a>
             <span className="text-muted-foreground">·</span>
             <a
-              href={`${API_ORIGIN}/${activeWorkspace.slug}`}
+              href={`${KB_ORIGIN}/${activeWorkspace.slug}`}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"

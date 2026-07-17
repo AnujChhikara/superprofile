@@ -6,6 +6,10 @@ type Workspace = InferSelectModel<typeof workspaces>;
 type Article = InferSelectModel<typeof kbArticles>;
 type Category = InferSelectModel<typeof kbCategories>;
 
+// Reserved URL slug for uncategorized articles (mirrors kbPublic.UNCATEGORIZED_SLUG;
+// kept local to avoid a circular import, since kbPublic imports from this module).
+const UNCATEGORIZED_SLUG = "general";
+
 export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -67,19 +71,21 @@ export function renderHome(
       return `<div class="cat"><h2>${escapeHtml(c.name)}</h2><ul>${items
         .map(
           (a) =>
-            `<li><a href="${escapeHtml(basePath)}/${escapeHtml(a.slug)}">${escapeHtml(
-              a.title
-            )}</a></li>`
+            `<li><a href="${escapeHtml(basePath)}/${escapeHtml(
+              c.slug
+            )}/${escapeHtml(a.slug)}">${escapeHtml(a.title)}</a></li>`
         )
         .join("")}</ul></div>`;
     })
     .join("");
   const extra =
     uncategorized.length > 0
-      ? `<div class="cat"><h2>Articles</h2><ul>${uncategorized
+      ? `<div class="cat"><h2>All</h2><ul>${uncategorized
           .map(
             (a) =>
-              `<li><a href="${escapeHtml(basePath)}/${escapeHtml(a.slug)}">${escapeHtml(
+              `<li><a href="${escapeHtml(
+                basePath
+              )}/${UNCATEGORIZED_SLUG}/${escapeHtml(a.slug)}">${escapeHtml(
                 a.title
               )}</a></li>`
           )
@@ -105,7 +111,7 @@ export function renderArticle(
 export function renderSearch(
   ws: Workspace,
   q: string,
-  results: Array<{ title: string; slug: string; snippet: string }>,
+  results: Array<{ title: string; slug: string; categorySlug: string; snippet: string }>,
   basePath: string
 ): string {
   const list =
@@ -115,7 +121,9 @@ export function renderSearch(
           .map(
             (r) =>
               `<li style="padding:14px 0;border-bottom:1px solid #eef2f7">
-              <a href="${escapeHtml(basePath)}/${escapeHtml(r.slug)}"><strong>${escapeHtml(
+              <a href="${escapeHtml(basePath)}/${escapeHtml(
+                r.categorySlug
+              )}/${escapeHtml(r.slug)}"><strong>${escapeHtml(
                 r.title
               )}</strong></a>
               <div class="muted" style="margin-top:4px">${r.snippet}</div></li>`

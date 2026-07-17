@@ -183,6 +183,10 @@ onMessageCreated(({ workspaceId, message }) => {
 });
 onConversationUpdated(({ workspaceId, conversation }) => {
   emitToWorkspace(workspaceId, "conversation:updated", { conversation });
+  // Also fan out to the conversation room so visitors viewing the thread learn
+  // about status changes (e.g. resolved) live. Handlers are idempotent, so a
+  // possible double-delivery to agents in that room is harmless.
+  emitToConversation(conversation.id, "conversation:updated", { conversation });
 });
 
 // Dev inbound-email simulator — DEMO_MODE only. Lets us exercise the email

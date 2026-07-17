@@ -29,6 +29,7 @@ export function App({ workspaceKey }: { workspaceKey: string }) {
   const [conversations, setConversations] = useState<WidgetConversation[]>([]);
   const [view, setView] = useState<"home" | "thread">("home");
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeStatus, setActiveStatus] = useState<string | null>(null);
   const [messages, setMessages] = useState<WidgetMessage[]>([]);
   const [agentTyping, setAgentTyping] = useState(false);
   const [connected, setConnected] = useState(true);
@@ -104,6 +105,16 @@ export function App({ workspaceKey }: { workspaceKey: string }) {
               setAgentTyping(p.isTyping);
           }
         );
+        socket.on(
+          "conversation:updated",
+          (p: { conversation: { id: string; status: string } }) => {
+            const { id, status } = p.conversation;
+            setConversations((cs) =>
+              cs.map((c) => (c.id === id ? { ...c, status: status as WidgetConversation["status"] } : c))
+            );
+            if (id === activeIdRef.current) setActiveStatus(status);
+          }
+        );
       } catch {
         setReady(true); // show UI even if init fails
       }
@@ -129,6 +140,7 @@ export function App({ workspaceKey }: { workspaceKey: string }) {
 
   async function openConversation(id: string) {
     setActiveId(id);
+    setActiveStatus(conversations.find((c) => c.id === id)?.status ?? null);
     setView("thread");
     setAgentTyping(false);
     const msgs = await getMessages(id, workspaceKey, visitorToken.current);
@@ -143,6 +155,7 @@ export function App({ workspaceKey }: { workspaceKey: string }) {
 
   function newConversation() {
     setActiveId(null);
+    setActiveStatus(null);
     setMessages([]);
     setAgentTyping(false);
     setView("thread");
@@ -157,6 +170,7 @@ export function App({ workspaceKey }: { workspaceKey: string }) {
         onBack={() => {
           setView("home");
           setActiveId(null);
+          setActiveStatus(null);
         }}
         onClose={() => parent.postMessage({ type: "widget:close" }, "*")}
       />
@@ -175,10 +189,12 @@ export function App({ workspaceKey }: { workspaceKey: string }) {
           activeId={activeId}
           messages={messages}
           agentTyping={agentTyping}
+          resolved={activeStatus === "resolved"}
           socket={socketRef.current}
-          onCreated={(conv, msg) => {
+          onCreated={(conv, msgs) => {
             setActiveId(conv.id);
-            setMessages([msg]);
+            setActiveStatus(conv.status);
+            setMessages(msgs);
             setConversations((c) => [conv, ...c]);
             socketRef.current?.emit("join", { conversationId: conv.id });
           }}
@@ -282,6 +298,7 @@ function Thread({
   activeId,
   messages,
   agentTyping,
+  resolved,
   socket,
   onCreated,
   onSent,
@@ -291,8 +308,9 @@ function Thread({
   activeId: string | null;
   messages: WidgetMessage[];
   agentTyping: boolean;
+  resolved: boolean;
   socket: Socket | null;
-  onCreated: (conv: WidgetConversation, msg: WidgetMessage) => void;
+  onCreated: (conv: WidgetConversation, msgs: WidgetMessage[]) => void;
   onSent: (msg: WidgetMessage) => void;
 }) {
   const [draft, setDraft] = useState("");
@@ -345,7 +363,7 @@ function Thread({
     try {
       if (!activeId) {
         const res = await startConversation(workspaceKey, visitorToken, body);
-        onCreated(res.conversation, res.message);
+        onCreated(res.conversation, res.messages);
       } else {
         const msg = await sendMessage(
           workspaceKey,
@@ -387,9 +405,17 @@ function Thread({
             </div>
           </div>
         )}
+        {resolved && (
+          <div style={{ ...styles.bubbleRow, justifyContent: "center" }}>
+            <div style={styles.systemMsg}>
+              An agent marked this conversation as resolved
+            </div>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
-      {suggestions.length > 0 && (
+      {/* When resolved, the thread is fully read-only: no suggestions, no composer. */}
+      {!resolved && suggestions.length > 0 && (
         <div style={styles.suggestWrap}>
           <div style={styles.suggestLabel}>Suggested articles</div>
           {suggestions.map((s) => (
@@ -405,24 +431,54 @@ function Thread({
           ))}
         </div>
       )}
-      <div style={styles.composer}>
-        <textarea
-          style={styles.textarea}
-          value={draft}
-          placeholder="Type a message…"
-          onInput={onInput}
-          onKeyDown={onKeyDown}
-          disabled={sending}
-        />
-        <button
-          style={{ ...styles.sendBtn, opacity: !draft.trim() || sending ? 0.5 : 1 }}
-          onClick={() => void send()}
-          disabled={!draft.trim() || sending}
-        >
-          ➤
-        </button>
-      </div>
+      {!resolved && (
+        <div style={styles.composer}>
+          <textarea
+            style={styles.textarea}
+            value={draft}
+            placeholder="Type a message…"
+            onInput={onInput}
+            onKeyDown={onKeyDown}
+            disabled={sending}
+          />
+          <button
+            style={{ ...styles.sendBtn, opacity: !draft.trim() || sending ? 0.5 : 1 }}
+            onClick={() => void send()}
+            disabled={!draft.trim() || sending}
+          >
+            ➤
+          </button>
+        </div>
+      )}
     </div>
+  );
+}
+
+// Render text with any http(s) URLs turned into clickable anchors. We only ever
+// wrap tokens that matched the URL regex; everything else is rendered as plain
+// text nodes, so untrusted message bodies can't inject markup (XSS-safe).
+const URL_RE = /(https?:\/\/[^\s]+)/g;
+const IS_URL_RE = /^https?:\/\/[^\s]+$/;
+function Linkified({ text, linkColor }: { text: string; linkColor?: string }) {
+  const parts = text.split(URL_RE);
+  return (
+    <>
+      {parts.map((part, i) =>
+        IS_URL_RE.test(part) ? (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: linkColor ?? "#4f46e5", textDecoration: "underline" }}
+          >
+            {part}
+          </a>
+        ) : (
+          part
+        )
+      )}
+    </>
   );
 }
 
@@ -430,7 +486,9 @@ function Bubble({ m }: { m: WidgetMessage }) {
   if (m.senderType === "system") {
     return (
       <div style={{ ...styles.bubbleRow, justifyContent: "center" }}>
-        <div style={styles.systemMsg}>{m.body}</div>
+        <div style={styles.systemMsg}>
+          <Linkified text={m.body} />
+        </div>
       </div>
     );
   }
@@ -449,7 +507,7 @@ function Bubble({ m }: { m: WidgetMessage }) {
         }}
       >
         <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-          {m.body}
+          <Linkified text={m.body} linkColor={isVisitor ? "#fff" : "#4f46e5"} />
         </div>
       </div>
     </div>

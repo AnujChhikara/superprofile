@@ -14,6 +14,7 @@ import {
 } from "../repos/conversations.js";
 import { emitMessageCreated, emitConversationUpdated } from "../events.js";
 import { isAgentOnline } from "../realtime/socket.js";
+import { searchArticles, publicArticleUrl } from "./kbPublic.js";
 
 export const widgetRouter = Router();
 
@@ -124,16 +125,58 @@ widgetRouter.post("/conversations", async (req, res) => {
     contactId: who.contactId,
     channel: "chat",
   });
+
+  // Ordered thread we hand back to the widget: visitor msg first, then the
+  // auto system messages (ack + optional KB suggestion).
+  const messages = [];
+
+  // 1) The visitor's first message.
   const message = await createMessage(who.wsId, {
     conversationId: conversation.id,
     senderType: "contact",
     senderId: who.contactId,
     body: parsed.data.body,
   });
+  messages.push(message);
+
+  // 2) Auto acknowledgement (system).
+  const ack = await createMessage(who.wsId, {
+    conversationId: conversation.id,
+    senderType: "system",
+    // system messages have no sender; repo stores null (senderId ?? null).
+    body: "Thanks for reaching out — someone will reply soon.",
+  });
+  messages.push(ack);
+
+  // 3) Optional KB suggestion (system) — best-effort; never block the reply.
+  try {
+    const kbHits = await searchArticles(who.wsId, parsed.data.body);
+    if (kbHits[0]) {
+      const ws = await workspaceByKey(parsed.data.workspaceKey);
+      if (ws) {
+        const url = publicArticleUrl(
+          ws.slug,
+          kbHits[0].categorySlug,
+          kbHits[0].slug
+        );
+        const suggestion = await createMessage(who.wsId, {
+          conversationId: conversation.id,
+          senderType: "system",
+          body: `You can read more in this article: ${kbHits[0].title} — ${url}`,
+        });
+        messages.push(suggestion);
+      }
+    }
+  } catch {
+    // KB suggestion is non-critical; ignore search/build failures.
+  }
+
   const conv = await getConversation(who.wsId, conversation.id);
-  emitMessageCreated({ workspaceId: who.wsId, conversation: conv, message });
+  for (const m of messages) {
+    emitMessageCreated({ workspaceId: who.wsId, conversation: conv, message: m });
+  }
   emitConversationUpdated({ workspaceId: who.wsId, conversation: conv });
-  return void res.status(201).json({ conversation: conv, message });
+  return void res.status(201).json({ conversation: conv, message, messages });
 });
 
 // POST /api/widget/conversations/:id/messages — reply in a conversation
@@ -161,6 +204,11 @@ widgetRouter.post("/conversations/:id/messages", async (req, res) => {
   // Tenant isolation for visitors: the conversation must be theirs.
   if (conv.contactId !== who.contactId)
     return void res.status(404).json({ error: "conversation not found" });
+
+  // Task 6: once an agent resolves a conversation, the visitor thread is
+  // read-only — reject replies rather than silently reopening it.
+  if (conv.status === "resolved")
+    return void res.status(409).json({ error: "conversation resolved" });
 
   const message = await createMessage(who.wsId, {
     conversationId: id,
