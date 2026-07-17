@@ -2,6 +2,17 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api.js";
 import { useAuth } from "../auth.js";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ExternalLink, Trash2, Plus } from "lucide-react";
 
 interface Category {
   id: string;
@@ -9,6 +20,7 @@ interface Category {
   slug: string;
   position: number;
 }
+
 interface Article {
   id: string;
   title: string;
@@ -31,6 +43,7 @@ export default function KnowledgeBase() {
     queryKey: ["kb-articles"],
     queryFn: () => api<Article[]>("/api/kb/articles"),
   });
+
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ["kb-categories"],
     queryFn: () => api<Category[]>("/api/kb/categories"),
@@ -52,22 +65,33 @@ export default function KnowledgeBase() {
   const selected = articles.find((a) => a.id === selectedId) ?? null;
 
   return (
-    <div style={S.root}>
-      <div style={S.left}>
-        <div style={S.leftHeader}>
-          <strong>Articles</strong>
-          <button style={S.smallBtn} onClick={() => createArticle.mutate()}>
-            + New
-          </button>
+    <div className="flex h-full overflow-hidden">
+      {/* Left sidebar */}
+      <div className="flex w-72 flex-shrink-0 flex-col border-r bg-background">
+        <div className="flex items-center justify-between border-b px-4 py-4">
+          <strong className="text-sm">Articles</strong>
+          <Button
+            size="sm"
+            variant="default"
+            onClick={() => createArticle.mutate()}
+            className="h-6"
+          >
+            <Plus className="size-3" />
+          </Button>
         </div>
-        <button
-          style={{ ...S.catToggle, color: showCategories ? "#4f46e5" : "#6b7280" }}
+        <Button
+          variant="ghost"
+          className="justify-start rounded-none border-b text-sm"
           onClick={() => setShowCategories((v) => !v)}
         >
           Manage categories
-        </button>
-        <div style={S.list}>
-          {articles.length === 0 && <div style={S.muted}>No articles yet.</div>}
+        </Button>
+        <div className="flex-1 overflow-y-auto">
+          {articles.length === 0 && (
+            <div className="p-4 text-sm text-muted-foreground">
+              No articles yet.
+            </div>
+          )}
           {articles.map((a) => (
             <button
               key={a.id}
@@ -75,37 +99,37 @@ export default function KnowledgeBase() {
                 setSelectedId(a.id);
                 setShowCategories(false);
               }}
-              style={{
-                ...S.item,
-                background: selectedId === a.id && !showCategories ? "#eef2ff" : "transparent",
-              }}
+              className={`w-full border-b px-4 py-3 text-left transition-colors ${
+                selectedId === a.id && !showCategories
+                  ? "bg-primary/10"
+                  : "hover:bg-muted"
+              }`}
             >
-              <div style={S.itemTitle}>{a.title}</div>
-              <span
-                style={{
-                  ...S.chip,
-                  background: a.status === "published" ? "#dcfce7" : "#f3f4f6",
-                  color: a.status === "published" ? "#166534" : "#6b7280",
-                }}
+              <div className="mb-1 text-sm font-semibold">{a.title}</div>
+              <Badge
+                variant={a.status === "published" ? "default" : "secondary"}
+                className="text-xs"
               >
                 {a.status}
-              </span>
+              </Badge>
             </button>
           ))}
         </div>
         {activeWorkspace && (
           <a
-            style={S.publicLink}
+            className="border-t px-4 py-3 text-sm text-primary hover:underline"
             href={`${API_ORIGIN}/${activeWorkspace.slug}`}
             target="_blank"
             rel="noreferrer"
           >
-            View public site ↗
+            View public site
+            <ExternalLink className="ml-1 inline size-3" />
           </a>
         )}
       </div>
 
-      <div style={S.main}>
+      {/* Main content */}
+      <div className="flex-1 overflow-y-auto bg-muted/30">
         {showCategories ? (
           <CategoriesPanel categories={categories} />
         ) : selected ? (
@@ -116,7 +140,9 @@ export default function KnowledgeBase() {
             onDeleted={() => setSelectedId(null)}
           />
         ) : (
-          <div style={S.empty}>Select an article or create a new one.</div>
+          <div className="flex h-full items-center justify-center text-muted-foreground">
+            Select an article or create a new one.
+          </div>
         )}
       </div>
     </div>
@@ -134,7 +160,9 @@ function Editor({
 }) {
   const qc = useQueryClient();
   const [title, setTitle] = useState(article.title);
-  const [categoryId, setCategoryId] = useState<string | null>(article.categoryId);
+  const [categoryId, setCategoryId] = useState<string | null>(
+    article.categoryId
+  );
   const bodyRef = useRef<HTMLDivElement>(null);
   const [saved, setSaved] = useState<string>("");
 
@@ -184,38 +212,38 @@ function Editor({
   }
 
   return (
-    <div style={S.editor}>
-      <input
-        style={S.titleInput}
+    <div className="max-w-2xl space-y-4 p-8">
+      <Input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Article title"
+        className="border-none bg-transparent text-2xl font-bold"
       />
-      <div style={S.editorRow}>
-        <select
-          style={S.select}
+
+      <div className="flex gap-3">
+        <Select
           value={categoryId ?? ""}
-          onChange={(e) => setCategoryId(e.target.value || null)}
+          onValueChange={(v) => setCategoryId(v || null)}
         >
-          <option value="">No category</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <span
-          style={{
-            ...S.chip,
-            background: article.status === "published" ? "#dcfce7" : "#f3f4f6",
-            color: article.status === "published" ? "#166534" : "#6b7280",
-          }}
-        >
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="No category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">No category</SelectItem>
+            {categories.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Badge variant={article.status === "published" ? "default" : "secondary"}>
           {article.status}
-        </span>
+        </Badge>
       </div>
 
-      <div style={S.toolbar}>
+      {/* Toolbar */}
+      <div className="flex flex-wrap gap-1 border-b pb-2">
         {(
           [
             ["Bold", "bold", "B"],
@@ -224,31 +252,37 @@ function Editor({
             ["Numbered list", "insertOrderedList", "1. List"],
           ] as const
         ).map(([label, command, text]) => (
-          <button
+          <Button
             key={command}
+            size="sm"
+            variant="outline"
             title={label}
-            style={S.tbBtn}
+            className="h-7"
             onMouseDown={(e) => {
               e.preventDefault();
               cmd(command);
             }}
           >
             {text}
-          </button>
+          </Button>
         ))}
-        <button
+        <Button
+          size="sm"
+          variant="outline"
           title="Heading"
-          style={S.tbBtn}
+          className="h-7"
           onMouseDown={(e) => {
             e.preventDefault();
             cmd("formatBlock", "h2");
           }}
         >
           H2
-        </button>
-        <button
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
           title="Link"
-          style={S.tbBtn}
+          className="h-7"
           onMouseDown={(e) => {
             e.preventDefault();
             const url = prompt("Link URL (https://…)");
@@ -256,31 +290,39 @@ function Editor({
           }}
         >
           Link
-        </button>
+        </Button>
       </div>
 
-      <div ref={bodyRef} contentEditable style={S.body} suppressContentEditableWarning />
+      {/* Editor body */}
+      <div
+        ref={bodyRef}
+        contentEditable
+        suppressContentEditableWarning
+        className="min-h-80 rounded-lg border border-input bg-background p-4 outline-none"
+      />
 
-      <div style={S.actions}>
-        <button style={S.primary} onClick={() => save.mutate()}>
-          Save
-        </button>
+      {/* Actions */}
+      <div className="flex gap-2">
+        <Button onClick={() => save.mutate()}>Save</Button>
         {article.status === "published" ? (
-          <button style={S.secondary} onClick={() => publish.mutate("draft")}>
+          <Button variant="outline" onClick={() => publish.mutate("draft")}>
             Unpublish
-          </button>
+          </Button>
         ) : (
-          <button style={S.secondary} onClick={() => publish.mutate("published")}>
+          <Button variant="outline" onClick={() => publish.mutate("published")}>
             Publish
-          </button>
+          </Button>
         )}
-        <button
-          style={S.danger}
-          onClick={() => confirm("Delete this article?") && del.mutate()}
+        <Button
+          variant="destructive"
+          onClick={() =>
+            confirm("Delete this article?") && del.mutate()
+          }
         >
+          <Trash2 className="size-3" />
           Delete
-        </button>
-        <span style={S.savedNote}>{saved}</span>
+        </Button>
+        {saved && <span className="ml-2 text-sm text-green-600">{saved}</span>}
       </div>
     </div>
   );
@@ -289,6 +331,7 @@ function Editor({
 function CategoriesPanel({ categories }: { categories: Category[] }) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
+
   const create = useMutation({
     mutationFn: () =>
       api("/api/kb/categories", {
@@ -300,62 +343,50 @@ function CategoriesPanel({ categories }: { categories: Category[] }) {
       qc.invalidateQueries({ queryKey: ["kb-categories"] });
     },
   });
+
   const del = useMutation({
-    mutationFn: (id: string) => api(`/api/kb/categories/${id}`, { method: "DELETE" }),
+    mutationFn: (id: string) =>
+      api(`/api/kb/categories/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["kb-categories"] }),
   });
+
   return (
-    <div style={S.editor}>
-      <h3 style={{ marginTop: 0 }}>Categories</h3>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <input
-          style={{ ...S.select, flex: 1 }}
+    <div className="max-w-2xl space-y-4 p-8">
+      <h2 className="text-xl font-semibold">Categories</h2>
+
+      <div className="flex gap-2">
+        <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="New category name"
+          className="flex-1"
         />
-        <button style={S.primary} disabled={!name.trim()} onClick={() => create.mutate()}>
+        <Button disabled={!name.trim()} onClick={() => create.mutate()}>
           Add
-        </button>
+        </Button>
       </div>
-      {categories.map((c) => (
-        <div key={c.id} style={S.catRow}>
-          <span>{c.name}</span>
-          <button style={S.danger} onClick={() => del.mutate(c.id)}>
-            Delete
-          </button>
-        </div>
-      ))}
-      {categories.length === 0 && <div style={S.muted}>No categories yet.</div>}
+
+      <div className="space-y-2">
+        {categories.map((c) => (
+          <div
+            key={c.id}
+            className="flex items-center justify-between rounded-lg border p-3"
+          >
+            <span className="text-sm">{c.name}</span>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => del.mutate(c.id)}
+              disabled={del.isPending}
+            >
+              <Trash2 className="size-3" />
+            </Button>
+          </div>
+        ))}
+        {categories.length === 0 && (
+          <p className="text-sm text-muted-foreground">No categories yet.</p>
+        )}
+      </div>
     </div>
   );
 }
-
-const S: Record<string, React.CSSProperties> = {
-  root: { display: "flex", height: "100%", fontFamily: "system-ui, sans-serif" },
-  left: { width: 280, flexShrink: 0, borderRight: "1px solid #e5e7eb", display: "flex", flexDirection: "column", background: "#fff" },
-  leftHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderBottom: "1px solid #f3f4f6" },
-  smallBtn: { background: "#4f46e5", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer" },
-  catToggle: { background: "none", border: "none", textAlign: "left", padding: "10px 16px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid #f3f4f6" },
-  list: { flex: 1, overflowY: "auto" },
-  item: { display: "block", width: "100%", textAlign: "left", padding: "12px 16px", border: "none", borderBottom: "1px solid #f9fafb", cursor: "pointer" },
-  itemTitle: { fontSize: 13, fontWeight: 600, color: "#111827", marginBottom: 4 },
-  chip: { fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 10, textTransform: "uppercase" },
-  publicLink: { padding: "12px 16px", fontSize: 13, color: "#4f46e5", borderTop: "1px solid #f3f4f6" },
-  main: { flex: 1, overflowY: "auto", background: "#fafafa" },
-  empty: { padding: 40, color: "#9ca3af" },
-  muted: { padding: 16, color: "#9ca3af", fontSize: 13 },
-  editor: { padding: "28px 36px", maxWidth: 760 },
-  titleInput: { width: "100%", fontSize: 22, fontWeight: 600, border: "none", outline: "none", background: "transparent", marginBottom: 12, color: "#111827" },
-  editorRow: { display: "flex", gap: 10, alignItems: "center", marginBottom: 16 },
-  select: { padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 13 },
-  toolbar: { display: "flex", gap: 4, marginBottom: 8, borderBottom: "1px solid #e5e7eb", paddingBottom: 8 },
-  tbBtn: { border: "1px solid #e5e7eb", background: "#fff", borderRadius: 6, padding: "4px 8px", fontSize: 12, cursor: "pointer" },
-  body: { minHeight: 300, border: "1px solid #e5e7eb", borderRadius: 8, padding: 16, background: "#fff", fontSize: 14, lineHeight: 1.7, outline: "none" },
-  actions: { display: "flex", gap: 8, alignItems: "center", marginTop: 16 },
-  primary: { background: "#4f46e5", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontWeight: 600, fontSize: 13, cursor: "pointer" },
-  secondary: { background: "#f3f4f6", color: "#374151", border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 16px", fontSize: 13, cursor: "pointer" },
-  danger: { background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 16px", fontSize: 13, cursor: "pointer" },
-  savedNote: { color: "#16a34a", fontSize: 13 },
-  catRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #eef2f7" },
-};
