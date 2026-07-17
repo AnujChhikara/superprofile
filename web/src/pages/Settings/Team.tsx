@@ -2,6 +2,16 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../api.js";
 import { useAuth } from "../../auth.js";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldGroup, Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Copy, Trash2, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 
 interface Member {
   userId: string;
@@ -18,7 +28,6 @@ export default function TeamSettings() {
   const [inviteRole, setInviteRole] = useState<"admin" | "agent">("agent");
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const { data: members = [], isLoading } = useQuery({
     queryKey: ["team", activeWorkspace?.id],
@@ -73,325 +82,152 @@ export default function TeamSettings() {
   const copyLink = () => {
     if (!inviteUrl) return;
     navigator.clipboard.writeText(inviteUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      toast.success("Invite link copied!");
     });
   };
 
   if (!activeWorkspace) {
-    return <p style={{ padding: 24 }}>No active workspace selected.</p>;
+    return <p className="p-6">No active workspace selected.</p>;
   }
 
   return (
-    <div style={styles.page}>
-      <h2 style={styles.heading}>Team</h2>
-      <p style={styles.sub}>Manage your workspace members and invites.</p>
+    <div className="max-w-3xl space-y-8 p-8">
+      <div>
+        <h1 className="text-2xl font-semibold">Team</h1>
+        <p className="text-muted-foreground">Manage your workspace members and invites.</p>
+      </div>
 
       {/* Invite form */}
-      <div style={styles.section}>
-        <h3 style={styles.sectionTitle}>Invite a teammate</h3>
-        <form onSubmit={handleInviteSubmit} style={styles.inviteForm}>
-          <input
-            type="email"
-            value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
-            placeholder="colleague@company.com"
-            style={styles.emailInput}
-            required
-          />
-          <select
-            value={inviteRole}
-            onChange={(e) => setInviteRole(e.target.value as "admin" | "agent")}
-            style={styles.roleSelect}
-          >
-            <option value="agent">Agent</option>
-            <option value="admin">Admin</option>
-          </select>
-          <button
-            type="submit"
-            style={styles.inviteBtn}
-            disabled={sendInvite.isPending}
-          >
-            {sendInvite.isPending ? "Sending…" : "Send invite"}
-          </button>
-        </form>
-
-        {inviteError && <p style={styles.error}>{inviteError}</p>}
-
-        {inviteUrl && (
-          <div style={styles.inviteUrlBox}>
-            <p style={styles.inviteUrlLabel}>Invite link (share this link):</p>
-            <div style={styles.inviteUrlRow}>
-              <code style={styles.inviteUrlCode}>{inviteUrl}</code>
-              <button onClick={copyLink} style={styles.copyBtn}>
-                {copied ? "Copied!" : "Copy"}
-              </button>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Invite a teammate</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form onSubmit={handleInviteSubmit} className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <FieldGroup className="flex-1">
+                <Field>
+                  <Input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="colleague@company.com"
+                    required
+                  />
+                </Field>
+              </FieldGroup>
+              <FieldGroup className="min-w-max">
+                <Field>
+                  <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as "admin" | "agent")}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="agent">Agent</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </FieldGroup>
+              <Button type="submit" disabled={sendInvite.isPending}>
+                {sendInvite.isPending ? "Sending…" : "Send invite"}
+              </Button>
             </div>
-          </div>
-        )}
-      </div>
+          </form>
+
+          {inviteError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="size-4" />
+              <AlertDescription>{inviteError}</AlertDescription>
+            </Alert>
+          )}
+
+          {inviteUrl && (
+            <Alert>
+              <AlertDescription className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Invite link (share this link):
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 break-all rounded bg-muted p-2 text-xs">
+                    {inviteUrl}
+                  </code>
+                  <Button size="sm" variant="outline" onClick={copyLink}>
+                    <Copy className="size-3" />
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Members list */}
-      <div style={styles.section}>
-        <h3 style={styles.sectionTitle}>Members</h3>
-        {isLoading ? (
-          <p style={styles.muted}>Loading…</p>
-        ) : members.length === 0 ? (
-          <p style={styles.muted}>No members yet.</p>
-        ) : (
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Name</th>
-                <th style={styles.th}>Email</th>
-                <th style={styles.th}>Role</th>
-                {activeWorkspace.role === "admin" && (
-                  <th style={styles.th}>Actions</th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Members</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <p className="text-muted-foreground">Loading…</p>
+          ) : members.length === 0 ? (
+            <p className="text-muted-foreground">No members yet.</p>
+          ) : (
+            <div className="space-y-3">
               {members.map((m) => (
-                <tr key={m.userId} style={styles.tr}>
-                  <td style={styles.td}>
-                    <div style={styles.nameCell}>
-                      {m.avatarUrl ? (
-                        <img
-                          src={m.avatarUrl}
-                          alt={m.name}
-                          style={styles.avatar}
-                        />
-                      ) : (
-                        <div style={styles.avatarPlaceholder}>
-                          {m.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <span>{m.name}</span>
+                <div key={m.userId} className="flex items-center justify-between rounded-lg border p-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="size-8">
+                      <AvatarImage src={m.avatarUrl || ""} alt={m.name} />
+                      <AvatarFallback>{m.name.charAt(0).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{m.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{m.email}</p>
                     </div>
-                  </td>
-                  <td style={styles.td}>{m.email}</td>
-                  <td style={styles.td}>
+                  </div>
+                  <div className="flex items-center gap-2">
                     {activeWorkspace.role === "admin" ? (
-                      <select
-                        value={m.role}
-                        onChange={(e) =>
-                          changeRole.mutate({
-                            userId: m.userId,
-                            role: e.target.value as "admin" | "agent",
-                          })
-                        }
-                        style={styles.roleSelectInline}
-                      >
-                        <option value="agent">Agent</option>
-                        <option value="admin">Admin</option>
-                      </select>
+                      <>
+                        <Select
+                          value={m.role}
+                          onValueChange={(role) =>
+                            changeRole.mutate({
+                              userId: m.userId,
+                              role: role as "admin" | "agent",
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-24">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="agent">Agent</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-destructive hover:bg-destructive/10"
+                          onClick={() => removeMember.mutate(m.userId)}
+                          disabled={removeMember.isPending}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </>
                     ) : (
-                      <span style={styles.roleBadge(m.role)}>{m.role}</span>
+                      <Badge variant={m.role === "admin" ? "default" : "secondary"}>
+                        {m.role}
+                      </Badge>
                     )}
-                  </td>
-                  {activeWorkspace.role === "admin" && (
-                    <td style={styles.td}>
-                      <button
-                        onClick={() => removeMember.mutate(m.userId)}
-                        style={styles.removeBtn}
-                        disabled={removeMember.isPending}
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  )}
-                </tr>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
-
-type RoleKey = "admin" | "agent";
-
-const styles = {
-  page: {
-    padding: "32px 40px",
-    maxWidth: 800,
-    fontFamily: "system-ui, -apple-system, sans-serif",
-  } satisfies React.CSSProperties,
-  heading: {
-    margin: "0 0 4px",
-    fontSize: 22,
-    fontWeight: 600,
-    color: "#111827",
-  } satisfies React.CSSProperties,
-  sub: {
-    margin: "0 0 32px",
-    fontSize: 14,
-    color: "#6b7280",
-  } satisfies React.CSSProperties,
-  section: {
-    marginBottom: 40,
-    background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 10,
-    padding: "24px 28px",
-  } satisfies React.CSSProperties,
-  sectionTitle: {
-    margin: "0 0 16px",
-    fontSize: 15,
-    fontWeight: 600,
-    color: "#374151",
-  } satisfies React.CSSProperties,
-  inviteForm: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap" as const,
-  } satisfies React.CSSProperties,
-  emailInput: {
-    flex: "1 1 200px",
-    padding: "9px 14px",
-    border: "1px solid #e5e7eb",
-    borderRadius: 7,
-    fontSize: 14,
-    outline: "none",
-    color: "#111827",
-  } satisfies React.CSSProperties,
-  roleSelect: {
-    padding: "9px 12px",
-    border: "1px solid #e5e7eb",
-    borderRadius: 7,
-    fontSize: 14,
-    color: "#374151",
-    background: "#fff",
-    cursor: "pointer",
-  } satisfies React.CSSProperties,
-  inviteBtn: {
-    padding: "9px 18px",
-    background: "#4f46e5",
-    color: "#fff",
-    border: "none",
-    borderRadius: 7,
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: "pointer",
-  } satisfies React.CSSProperties,
-  error: {
-    marginTop: 10,
-    color: "#ef4444",
-    fontSize: 13,
-  } satisfies React.CSSProperties,
-  inviteUrlBox: {
-    marginTop: 16,
-    background: "#f9fafb",
-    border: "1px solid #e5e7eb",
-    borderRadius: 7,
-    padding: "12px 16px",
-  } satisfies React.CSSProperties,
-  inviteUrlLabel: {
-    margin: "0 0 6px",
-    fontSize: 12,
-    fontWeight: 500,
-    color: "#6b7280",
-  } satisfies React.CSSProperties,
-  inviteUrlRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-  } satisfies React.CSSProperties,
-  inviteUrlCode: {
-    fontSize: 12,
-    color: "#374151",
-    wordBreak: "break-all" as const,
-    flex: 1,
-  } satisfies React.CSSProperties,
-  copyBtn: {
-    flexShrink: 0,
-    padding: "5px 12px",
-    border: "1px solid #e5e7eb",
-    borderRadius: 6,
-    background: "#fff",
-    fontSize: 12,
-    cursor: "pointer",
-    color: "#374151",
-    fontWeight: 500,
-  } satisfies React.CSSProperties,
-  table: {
-    width: "100%",
-    borderCollapse: "collapse" as const,
-    fontSize: 14,
-  } satisfies React.CSSProperties,
-  th: {
-    textAlign: "left" as const,
-    padding: "8px 12px",
-    borderBottom: "1px solid #e5e7eb",
-    fontSize: 12,
-    fontWeight: 600,
-    color: "#6b7280",
-    textTransform: "uppercase" as const,
-    letterSpacing: "0.05em",
-  } satisfies React.CSSProperties,
-  tr: {
-    borderBottom: "1px solid #f3f4f6",
-  } satisfies React.CSSProperties,
-  td: {
-    padding: "12px 12px",
-    color: "#374151",
-    verticalAlign: "middle" as const,
-  } satisfies React.CSSProperties,
-  nameCell: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-  } satisfies React.CSSProperties,
-  avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: "50%",
-    objectFit: "cover" as const,
-  } satisfies React.CSSProperties,
-  avatarPlaceholder: {
-    width: 28,
-    height: 28,
-    borderRadius: "50%",
-    background: "#e0e7ff",
-    color: "#4f46e5",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 12,
-    fontWeight: 600,
-    flexShrink: 0,
-  } satisfies React.CSSProperties,
-  roleSelectInline: {
-    padding: "4px 8px",
-    border: "1px solid #e5e7eb",
-    borderRadius: 5,
-    fontSize: 13,
-    color: "#374151",
-    background: "#fff",
-    cursor: "pointer",
-  } satisfies React.CSSProperties,
-  roleBadge: (role: RoleKey): React.CSSProperties => ({
-    display: "inline-block",
-    padding: "2px 8px",
-    borderRadius: 12,
-    fontSize: 12,
-    fontWeight: 500,
-    background: role === "admin" ? "#e0e7ff" : "#f0fdf4",
-    color: role === "admin" ? "#4f46e5" : "#16a34a",
-  }),
-  removeBtn: {
-    padding: "4px 10px",
-    border: "1px solid #fecaca",
-    borderRadius: 5,
-    background: "#fff",
-    color: "#ef4444",
-    fontSize: 12,
-    cursor: "pointer",
-  } satisfies React.CSSProperties,
-  muted: {
-    color: "#9ca3af",
-    fontSize: 14,
-    margin: 0,
-  } satisfies React.CSSProperties,
-};
