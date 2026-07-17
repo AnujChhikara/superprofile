@@ -1,5 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import LinkExtension from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
 import { api } from "../api.js";
 import { useAuth } from "../auth.js";
 import { Button } from "@/components/ui/button";
@@ -12,7 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ExternalLink, Trash2, Plus } from "lucide-react";
+import {
+  ExternalLink, Trash2, Plus,
+  Bold, Italic, List, ListOrdered, Heading2, Heading3,
+  Code, Quote, Link,
+} from "lucide-react";
 
 interface Category {
   id: string;
@@ -149,6 +157,31 @@ export default function KnowledgeBase() {
   );
 }
 
+function ToolbarBtn({
+  onClick,
+  active,
+  title,
+  children,
+}: {
+  onClick: () => void;
+  active?: boolean;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant={active ? "default" : "outline"}
+      title={title}
+      className="size-7 p-0"
+      onMouseDown={(e) => { e.preventDefault(); onClick(); }}
+    >
+      {children}
+    </Button>
+  );
+}
+
 function Editor({
   article,
   categories,
@@ -160,25 +193,23 @@ function Editor({
 }) {
   const qc = useQueryClient();
   const [title, setTitle] = useState(article.title);
-  const [categoryId, setCategoryId] = useState<string | null>(
-    article.categoryId
-  );
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const [saved, setSaved] = useState<string>("");
+  const [categoryId, setCategoryId] = useState<string | null>(article.categoryId);
+  const [saved, setSaved] = useState("");
 
-  useEffect(() => {
-    if (bodyRef.current) bodyRef.current.innerHTML = article.bodyHtml;
-  }, [article.id, article.bodyHtml]);
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      LinkExtension.configure({ openOnClick: false }),
+      Placeholder.configure({ placeholder: "Write your article here…" }),
+    ],
+    content: article.bodyHtml,
+  }, [article.id]);
 
   const save = useMutation({
     mutationFn: () =>
       api<Article>(`/api/kb/articles/${article.id}`, {
         method: "PATCH",
-        body: JSON.stringify({
-          title,
-          categoryId,
-          bodyHtml: bodyRef.current?.innerHTML ?? "",
-        }),
+        body: JSON.stringify({ title, categoryId, bodyHtml: editor?.getHTML() ?? "" }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["kb-articles"] });
@@ -200,16 +231,18 @@ function Editor({
 
   const del = useMutation({
     mutationFn: () => api(`/api/kb/articles/${article.id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["kb-articles"] });
-      onDeleted();
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["kb-articles"] }); onDeleted(); },
   });
 
-  function cmd(command: string, value?: string) {
-    document.execCommand(command, false, value);
-    bodyRef.current?.focus();
-  }
+  const setLink = () => {
+    const prev = editor?.getAttributes("link").href ?? "";
+    const url = prompt("URL (https://…)", prev);
+    if (url === null) return;
+    if (url === "") { editor?.chain().focus().extendMarkRange("link").unsetLink().run(); return; }
+    editor?.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+  };
+
+  if (!editor) return null;
 
   return (
     <div className="max-w-2xl space-y-4 p-8">
@@ -217,23 +250,18 @@ function Editor({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Article title"
-        className="border-none bg-transparent text-2xl font-bold"
+        className="border-none bg-transparent text-2xl font-bold shadow-none focus-visible:ring-0"
       />
 
-      <div className="flex gap-3">
-        <Select
-          value={categoryId ?? ""}
-          onValueChange={(v) => setCategoryId(v || null)}
-        >
+      <div className="flex items-center gap-3">
+        <Select value={categoryId ?? ""} onValueChange={(v) => setCategoryId(v || null)}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="No category" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="">No category</SelectItem>
             {categories.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -243,86 +271,69 @@ function Editor({
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-wrap gap-1 border-b pb-2">
-        {(
-          [
-            ["Bold", "bold", "B"],
-            ["Italic", "italic", "i"],
-            ["Bullet list", "insertUnorderedList", "• List"],
-            ["Numbered list", "insertOrderedList", "1. List"],
-          ] as const
-        ).map(([label, command, text]) => (
-          <Button
-            key={command}
-            size="sm"
-            variant="outline"
-            title={label}
-            className="h-7"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              cmd(command);
-            }}
-          >
-            {text}
-          </Button>
-        ))}
-        <Button
-          size="sm"
-          variant="outline"
-          title="Heading"
-          className="h-7"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            cmd("formatBlock", "h2");
-          }}
-        >
-          H2
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          title="Link"
-          className="h-7"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            const url = prompt("Link URL (https://…)");
-            if (url) cmd("createLink", url);
-          }}
-        >
-          Link
-        </Button>
+      <div className="flex flex-wrap items-center gap-1 rounded-t-lg border border-b-0 border-input bg-muted/50 px-2 py-1.5">
+        <ToolbarBtn title="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}>
+          <Bold className="size-3.5" />
+        </ToolbarBtn>
+        <ToolbarBtn title="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}>
+          <Italic className="size-3.5" />
+        </ToolbarBtn>
+        <ToolbarBtn title="Code" active={editor.isActive("code")} onClick={() => editor.chain().focus().toggleCode().run()}>
+          <Code className="size-3.5" />
+        </ToolbarBtn>
+
+        <div className="mx-1 h-4 w-px bg-border" />
+
+        <ToolbarBtn title="Heading 2" active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
+          <Heading2 className="size-3.5" />
+        </ToolbarBtn>
+        <ToolbarBtn title="Heading 3" active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
+          <Heading3 className="size-3.5" />
+        </ToolbarBtn>
+
+        <div className="mx-1 h-4 w-px bg-border" />
+
+        <ToolbarBtn title="Bullet list" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}>
+          <List className="size-3.5" />
+        </ToolbarBtn>
+        <ToolbarBtn title="Numbered list" active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
+          <ListOrdered className="size-3.5" />
+        </ToolbarBtn>
+        <ToolbarBtn title="Blockquote" active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
+          <Quote className="size-3.5" />
+        </ToolbarBtn>
+
+        <div className="mx-1 h-4 w-px bg-border" />
+
+        <ToolbarBtn title="Link" active={editor.isActive("link")} onClick={setLink}>
+          <Link className="size-3.5" />
+        </ToolbarBtn>
       </div>
 
-      {/* Editor body */}
-      <div
-        ref={bodyRef}
-        contentEditable
-        suppressContentEditableWarning
-        className="min-h-80 rounded-lg border border-input bg-background p-4 outline-none"
-      />
+      {/* Editor */}
+      <div className="tiptap-editor rounded-b-lg border border-input bg-background">
+        <EditorContent editor={editor} />
+      </div>
 
       {/* Actions */}
       <div className="flex gap-2">
-        <Button onClick={() => save.mutate()}>Save</Button>
+        <Button onClick={() => save.mutate()} disabled={save.isPending}>
+          {save.isPending ? "Saving…" : "Save"}
+        </Button>
         {article.status === "published" ? (
-          <Button variant="outline" onClick={() => publish.mutate("draft")}>
+          <Button variant="outline" onClick={() => publish.mutate("draft")} disabled={publish.isPending}>
             Unpublish
           </Button>
         ) : (
-          <Button variant="outline" onClick={() => publish.mutate("published")}>
+          <Button variant="outline" onClick={() => publish.mutate("published")} disabled={publish.isPending}>
             Publish
           </Button>
         )}
-        <Button
-          variant="destructive"
-          onClick={() =>
-            confirm("Delete this article?") && del.mutate()
-          }
-        >
+        <Button variant="destructive" onClick={() => confirm("Delete this article?") && del.mutate()} disabled={del.isPending}>
           <Trash2 className="size-3" />
           Delete
         </Button>
-        {saved && <span className="ml-2 text-sm text-green-600">{saved}</span>}
+        {saved && <span className="ml-2 self-center text-sm text-green-600">{saved}</span>}
       </div>
     </div>
   );

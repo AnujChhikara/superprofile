@@ -131,3 +131,30 @@
     cursor: pointer;
     }
 }
+
+/* TipTap rich-text editor content styles */
+.tiptap-editor .ProseMirror {
+  outline: none;
+  min-height: 20rem;
+  padding: 1rem;
+}
+.tiptap-editor .ProseMirror p { margin-bottom: 0.75rem; }
+.tiptap-editor .ProseMirror h2 { font-size: 1.25rem; font-weight: 700; margin: 1.25rem 0 0.5rem; }
+.tiptap-editor .ProseMirror h3 { font-size: 1.1rem; font-weight: 600; margin: 1rem 0 0.4rem; }
+.tiptap-editor .ProseMirror ul { list-style: disc; padding-left: 1.4rem; margin-bottom: 0.75rem; }
+.tiptap-editor .ProseMirror ol { list-style: decimal; padding-left: 1.4rem; margin-bottom: 0.75rem; }
+.tiptap-editor .ProseMirror li { margin-bottom: 0.25rem; }
+.tiptap-editor .ProseMirror a { color: oklch(0.511 0.229 277); text-decoration: underline; }
+.tiptap-editor .ProseMirror code { font-family: monospace; background: oklch(0.97 0 0); border-radius: 0.25rem; padding: 0.1rem 0.35rem; font-size: 0.875em; }
+.tiptap-editor .ProseMirror pre { background: oklch(0.15 0 0); color: oklch(0.9 0 0); padding: 0.75rem 1rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 0.75rem; }
+.tiptap-editor .ProseMirror pre code { background: none; padding: 0; }
+.tiptap-editor .ProseMirror blockquote { border-left: 3px solid oklch(0.7 0 0); padding-left: 1rem; color: oklch(0.5 0 0); margin-bottom: 0.75rem; }
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: oklch(0.6 0 0);
+  pointer-events: none;
+  height: 0;
+}
+.dark .tiptap-editor .ProseMirror code { background: oklch(0.24 0 0); }
+.dark .tiptap-editor .ProseMirror a { color: oklch(0.70 0.22 277); }
