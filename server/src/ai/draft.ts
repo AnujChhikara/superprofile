@@ -77,7 +77,6 @@ export async function generateDraft(
 
   let kb: Array<{ title: string; body: string }> = [];
   if (lastCustomer) {
-    console.log("[draft] workspaceId=%s query=%j", workspaceId, lastCustomer.body);
     const hits = await db.execute(sql`
       SELECT title, body_text
       FROM kb_articles
@@ -87,8 +86,14 @@ export async function generateDraft(
       ORDER BY ts_rank(search_vector, websearch_to_tsquery('english', ${lastCustomer.body})) DESC
       LIMIT 3
     `);
-    console.log("[draft] kb hits=%d", hits.rows.length);
-    kb = (hits.rows as Array<{ title: string; body_text: string }>).map((r) => ({
+    // If FTS finds nothing (short/vague message), fall back to the top published articles
+    // so the AI always has KB context rather than returning the generic fallback.
+    const rows = hits.rows.length > 0 ? hits.rows : (await db.execute(sql`
+      SELECT title, body_text FROM kb_articles
+      WHERE workspace_id = ${workspaceId} AND status = 'published'
+      ORDER BY updated_at DESC LIMIT 2
+    `)).rows;
+    kb = (rows as Array<{ title: string; body_text: string }>).map((r) => ({
       title: r.title,
       body: r.body_text,
     }));
