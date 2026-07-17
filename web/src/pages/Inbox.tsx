@@ -621,9 +621,8 @@ function MessageBubble({
   userId: string;
   readByContact?: boolean;
 }) {
-  const isAgent =
-    message.senderType === "agent" && message.senderId === userId;
-  const isOwnAgent = message.senderType === "agent";
+  const isAgent = message.senderType === "agent";
+  const isOwnAgent = isAgent && message.senderId === userId;
   const isSystem = message.senderType === "system";
 
   if (isSystem) {
