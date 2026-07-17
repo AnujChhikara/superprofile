@@ -1,4 +1,16 @@
 import { z } from "zod";
+
+// Load a local .env file for dev — never in production (App Service injects
+// real settings) or under tests. Real environment variables take precedence
+// over file values, and a missing file is a no-op.
+if (!process.env.VITEST && process.env.NODE_ENV !== "production") {
+  try {
+    process.loadEnvFile();
+  } catch {
+    /* no .env present — defaults below apply */
+  }
+}
+
 const schema = z.object({
   PORT: z.coerce.number().default(3000),
   NODE_ENV: z.string().default("development"),

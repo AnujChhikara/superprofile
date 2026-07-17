@@ -1,5 +1,8 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth.js";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 import Layout from "./Layout.js";
 import Login from "./pages/Login.js";
 import Onboarding from "./pages/Onboarding.js";
@@ -15,18 +18,8 @@ function AppRoutes() {
 
   if (isLoading) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "system-ui, -apple-system, sans-serif",
-          color: "#6b7280",
-          fontSize: 15,
-        }}
-      >
-        Loading…
+      <div className="flex min-h-screen items-center justify-center">
+        <Skeleton className="size-10 rounded-full" />
       </div>
     );
   }
@@ -71,7 +64,10 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <TooltipProvider>
+        <AppRoutes />
+        <Toaster />
+      </TooltipProvider>
     </AuthProvider>
   );
 }

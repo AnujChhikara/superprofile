@@ -185,6 +185,18 @@ export function initSocket(httpServer: http.Server): Server {
       }
     });
 
+    // Visitors may only act on their own conversations. Agents share the team
+    // inbox, so any workspace member may act on any conversation there.
+    async function visitorOwnsConversation(conversationId: string): Promise<boolean> {
+      if (data.kind !== "visitor") return true;
+      try {
+        const conv = await getConversation(data.workspaceId, conversationId);
+        return conv.contactId === data.contactId;
+      } catch {
+        return false;
+      }
+    }
+
     // ---- send a message (shared write path with REST) ----
     socket.on("message:send", async (payload: unknown, ack?: (r: unknown) => void) => {
       const parsed = z
@@ -197,6 +209,10 @@ export function initSocket(httpServer: http.Server): Server {
       if (!parsed.success) return ack?.({ error: "invalid payload" });
       const { conversationId, body } = parsed.data;
       try {
+        // Tenant isolation for visitors — can't post into another contact's convo.
+        if (!(await visitorOwnsConversation(conversationId))) {
+          return ack?.({ error: "conversation not found" });
+        }
         const message = await createMessage(data.workspaceId, {
           conversationId,
           senderType: data.kind === "agent" ? "agent" : "contact",
@@ -230,6 +246,13 @@ export function initSocket(httpServer: http.Server): Server {
         .object({ conversationId: z.string(), isTyping: z.boolean() })
         .safeParse(payload);
       if (!parsed.success) return;
+      // Visitors may only signal typing in conversations they've joined (join
+      // already enforced ownership); avoids a DB hit on this hot path.
+      if (
+        data.kind === "visitor" &&
+        !data.joinedConvs.has(parsed.data.conversationId)
+      )
+        return;
       const senderType = data.kind === "agent" ? "agent" : "contact";
       const evt: ServerEvents["typing"] = {
         conversationId: parsed.data.conversationId,
@@ -253,6 +276,8 @@ export function initSocket(httpServer: http.Server): Server {
       if (!parsed.success) return;
       const { conversationId, upToSeq } = parsed.data;
       try {
+        // Tenant isolation for visitors before mutating/broadcasting.
+        if (!(await visitorOwnsConversation(conversationId))) return;
         // Agents read contact messages; visitors read agent messages.
         await markContactMessagesRead(
           data.workspaceId,
