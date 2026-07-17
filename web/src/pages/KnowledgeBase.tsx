@@ -87,13 +87,6 @@ export default function KnowledgeBase() {
             <Plus className="size-3" />
           </Button>
         </div>
-        <Button
-          variant="ghost"
-          className="justify-start rounded-none border-b text-sm"
-          onClick={() => setShowCategories((v) => !v)}
-        >
-          Manage categories
-        </Button>
         <div className="flex-1 overflow-y-auto">
           {articles.length === 0 && (
             <div className="p-4 text-sm text-muted-foreground">
@@ -123,17 +116,28 @@ export default function KnowledgeBase() {
             </button>
           ))}
         </div>
-        {activeWorkspace && (
-          <a
-            className="border-t px-4 py-3 text-sm text-primary hover:underline"
-            href={`${KB_ORIGIN}/${activeWorkspace.slug}`}
-            target="_blank"
-            rel="noreferrer"
+        {/* Bottom actions */}
+        <div className="mt-auto flex flex-col gap-2 border-t p-3">
+          <Button
+            variant={showCategories ? "secondary" : "outline"}
+            className="w-full justify-start gap-2"
+            onClick={() => setShowCategories((v) => !v)}
           >
-            View public site
-            <ExternalLink className="ml-1 inline size-3" />
-          </a>
-        )}
+            <Plus className="size-4" />
+            Manage categories
+          </Button>
+          {activeWorkspace && (
+            <a
+              className="flex items-center gap-1 px-1 py-1 text-sm text-primary hover:underline"
+              href={`${KB_ORIGIN}/${activeWorkspace.slug}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              View public site
+              <ExternalLink className="inline size-3" />
+            </a>
+          )}
+        </div>
       </div>
 
       {/* Main content */}

@@ -118,7 +118,18 @@ kbRouter.patch("/articles/:id", async (req, res) => {
   if (!existing) return void res.status(404).json({ error: "not found" });
 
   const patch: Record<string, unknown> = { updatedAt: new Date() };
-  if (parsed.data.title !== undefined) patch.title = parsed.data.title;
+  if (parsed.data.title !== undefined) {
+    patch.title = parsed.data.title;
+    // Keep the URL slug in sync with the title so a renamed article no longer
+    // stays at its "untitled-article" slug. Regenerate whenever the current
+    // slug doesn't already derive from this title (allowing the -2/-3 uniqueness
+    // suffix), which also repairs articles saved before this behavior existed.
+    const base = slugify(parsed.data.title);
+    const derivesFromTitle = new RegExp(`^${base}(-\\d+)?$`).test(existing.slug);
+    if (!derivesFromTitle) {
+      patch.slug = await uniqueSlug(wsId, base, kbArticles, id);
+    }
+  }
   if (parsed.data.categoryId !== undefined)
     patch.categoryId = parsed.data.categoryId;
   if (parsed.data.status !== undefined) patch.status = parsed.data.status;
