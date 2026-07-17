@@ -33,25 +33,13 @@ import {
   ChevronDown,
   LogOut,
   Users,
-  type LucideIcon,
 } from "lucide-react";
 
-const API_ORIGIN = import.meta.env.VITE_API_ORIGIN ?? "http://localhost:3000";
-
-type NavItem = {
-  href: string;
-  icon: LucideIcon;
-  label: string;
-  // External links open in a new tab (e.g. the standalone /demo storefront that
-  // embeds the live widget) instead of navigating within the SPA.
-  external?: boolean;
-};
-
-const navItems: NavItem[] = [
+const navItems = [
   { href: "/inbox", icon: Inbox, label: "Inbox" },
   { href: "/knowledge", icon: BookOpen, label: "Knowledge Base" },
   { href: "/analytics", icon: BarChart3, label: "Analytics" },
-  { href: `${API_ORIGIN}/demo`, icon: MessagesSquare, label: "Test widget", external: true },
+  { href: "/try", icon: MessagesSquare, label: "Try it out" },
   { href: "/settings/team", icon: Users, label: "Team" },
   { href: "/settings/domains", icon: Globe, label: "Domains" },
   { href: "/settings/canned", icon: MessageSquare, label: "Canned" },
@@ -109,38 +97,19 @@ function AppSidebar() {
         <SidebarMenu>
           {navItems.map((item) => {
             const Icon = item.icon;
-            // External links (the /demo page) carry the active workspace's public
-            // key so the demo installs the widget for THIS workspace — same
-            // mechanism as the real embed snippet, just launched from the sidebar.
-            const externalHref =
-              item.external && activeWorkspace
-                ? `${item.href}?ws=${encodeURIComponent(activeWorkspace.publicKey)}`
-                : item.href;
             return (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton asChild size="default">
-                  {item.external ? (
-                    <a
-                      href={externalHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sidebar-foreground"
-                    >
-                      <Icon className="size-4" />
-                      <span>{item.label}</span>
-                    </a>
-                  ) : (
-                    <NavLink
-                      to={item.href}
-                      end={item.href === "/inbox" || item.href === "/settings"}
-                      className={({ isActive }) =>
-                        isActive ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground"
-                      }
-                    >
-                      <Icon className="size-4" />
-                      <span>{item.label}</span>
-                    </NavLink>
-                  )}
+                  <NavLink
+                    to={item.href}
+                    end={item.href === "/inbox" || item.href === "/settings"}
+                    className={({ isActive }) =>
+                      isActive ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground"
+                    }
+                  >
+                    <Icon className="size-4" />
+                    <span>{item.label}</span>
+                  </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             );
