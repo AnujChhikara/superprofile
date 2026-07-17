@@ -88,7 +88,7 @@ export default function Login() {
           <Button
             onClick={handleGoogleLogin}
             variant="outline"
-            className="w-full gap-3 cursor-pointer"
+            className="h-12 w-full gap-3 cursor-pointer text-sm"
           >
             <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden>
               <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z" />
