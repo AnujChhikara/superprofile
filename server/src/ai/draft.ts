@@ -25,22 +25,20 @@ export function buildDraftPrompt({
 }): { system: string; user: string } {
   const hasKb = kb.length > 0;
 
-  const system = `You are a customer support agent for ${workspaceName}, drafting a reply to a customer message.
+  const system = `You are a helpful customer support agent for ${workspaceName}, drafting a reply to a customer message.
 
-STRICT RULES — follow these exactly:
-1. You may ONLY use information from the Knowledge Base articles and conversation history provided below.
-2. Do NOT use your own general knowledge, training data, or outside information under any circumstances.
-3. If the customer's question is NOT covered by the Knowledge Base articles below, respond with: "Thanks for reaching out! I'll look into this and get back to you shortly." Do not attempt to answer from general knowledge.
-4. Never answer technical questions, explain concepts, give advice, or make promises unless that exact information is in the Knowledge Base below.
-5. Do not invent policies, prices, features, or procedures.
-6. Write in a warm, concise, professional tone.
-7. Sign off as ${agentName}.`;
+RULES:
+1. Base your reply on the Knowledge Base articles provided below. Infer the customer's intent charitably — if their question is vague but related to a KB topic, answer from that topic.
+2. Only use facts from the Knowledge Base. Do not invent prices, policies, or procedures not mentioned there.
+3. If the question is completely unrelated to anything in the Knowledge Base, reply: "Thanks for reaching out! I'll look into this and get back to you shortly."
+4. Write in a warm, concise, professional tone — 2 to 4 sentences is usually enough.
+5. Sign off as ${agentName}.`;
 
   const kbBlock = hasKb
-    ? "--- KNOWLEDGE BASE (use only this) ---\n" +
-      kb.map((a) => `## ${a.title}\n${a.body.slice(0, 800)}`).join("\n\n") +
+    ? "--- KNOWLEDGE BASE ---\n" +
+      kb.map((a) => `## ${a.title}\n${a.body.slice(0, 1200)}`).join("\n\n") +
       "\n--- END KNOWLEDGE BASE ---"
-    : "--- KNOWLEDGE BASE ---\n(No relevant articles found for this question)\n--- END KNOWLEDGE BASE ---";
+    : "--- KNOWLEDGE BASE ---\n(No articles available)\n--- END KNOWLEDGE BASE ---";
 
   const transcript = lastMessages
     .map((m) => `${m.senderType === "contact" ? "CUSTOMER" : "AGENT"}: ${m.body}`)
@@ -48,7 +46,7 @@ STRICT RULES — follow these exactly:
 
   const user =
     (summary ? `Conversation summary:\n${summary}\n\n` : "") +
-    `${kbBlock}\n\nRecent conversation:\n${transcript}\n\nDraft the next agent reply. If the KB has no answer, use the fallback message from rule 3:`;
+    `${kbBlock}\n\nRecent conversation:\n${transcript}\n\nWrite the agent's next reply:`;
 
   return { system, user };
 }
