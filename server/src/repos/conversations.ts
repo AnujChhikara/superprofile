@@ -308,6 +308,7 @@ export async function createMessage(
   // Reopen resolved conversation when a contact sends a message
   if (senderType === "contact" && conv.status === "resolved") {
     updates.status = "open";
+    updates.resolvedAt = null;
   }
 
   await db
@@ -339,11 +340,28 @@ export async function updateConversation(
     .from(conversations)
     .where(and(eq(conversations.id, id), eq(conversations.workspaceId, workspaceId)));
 
-  if (!convRows[0]) notFound("conversation not found");
+  const current = convRows[0];
+  if (!current) notFound("conversation not found");
+
+  // Maintain resolvedAt on status transitions. Extend (not replace) the caller's
+  // patch so the public signature is unchanged.
+  const writePatch: typeof patch & { resolvedAt?: Date | null } = { ...patch };
+  if (patch.status !== undefined) {
+    if (patch.status === "resolved") {
+      // Only stamp resolvedAt when transitioning INTO resolved (idempotent).
+      if (current.status !== "resolved") writePatch.resolvedAt = new Date();
+    } else {
+      // status → open | snoozed clears the resolution timestamp.
+      writePatch.resolvedAt = null;
+    }
+  }
 
   // Drizzle throws on an empty .set(); nothing to change → return current row.
-  if (Object.keys(patch).length > 0) {
-    await db.update(conversations).set(patch).where(eq(conversations.id, id));
+  if (Object.keys(writePatch).length > 0) {
+    await db
+      .update(conversations)
+      .set(writePatch)
+      .where(eq(conversations.id, id));
   }
 
   const updated = await db

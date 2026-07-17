@@ -14,6 +14,7 @@ export const conversations = pgTable(
     assigneeId: text("assignee_id"),
     subject: text("subject"),
     snoozedUntil: timestamp("snoozed_until"),
+    resolvedAt: timestamp("resolved_at"),
     lastMessageAt: timestamp("last_message_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

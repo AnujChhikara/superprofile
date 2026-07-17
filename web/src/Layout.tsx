@@ -25,6 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Inbox,
   BookOpen,
+  BarChart3,
   Settings,
   Globe,
   MessageSquare,
@@ -36,6 +37,7 @@ import {
 const navItems = [
   { href: "/inbox", icon: Inbox, label: "Inbox" },
   { href: "/knowledge", icon: BookOpen, label: "Knowledge Base" },
+  { href: "/analytics", icon: BarChart3, label: "Analytics" },
   { href: "/settings/team", icon: Users, label: "Team" },
   { href: "/settings/domains", icon: Globe, label: "Domains" },
   { href: "/settings/canned", icon: MessageSquare, label: "Canned" },

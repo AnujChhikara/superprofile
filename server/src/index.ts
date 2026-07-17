@@ -20,6 +20,7 @@ import { summariesRouter } from "./routes/summaries.js";
 import { domainsRouter, customDomainMiddleware } from "./routes/domains.js";
 import { devRouter } from "./routes/dev.js";
 import { cannedRouter } from "./routes/canned.js";
+import { analyticsRouter } from "./routes/analytics.js";
 import { handleInbound } from "./email/inbound.js";
 import { db } from "./db/client.js";
 import { conversations, workspaces } from "./db/schema.js";
@@ -172,6 +173,9 @@ app.use("/api/domains", domainsRouter);
 
 // Canned responses (stretch).
 app.use("/api/canned", cannedRouter);
+
+// Admin-only analytics dashboard.
+app.use("/api/analytics", analyticsRouter);
 
 // ---- Realtime fan-out: turn in-process events into socket broadcasts ----
 // Registered at module load; the emit helpers no-op until initSocket runs
