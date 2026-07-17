@@ -182,7 +182,7 @@ export function App({ workspaceKey }: { workspaceKey: string }) {
             setConversations((c) => [conv, ...c]);
             socketRef.current?.emit("join", { conversationId: conv.id });
           }}
-          onSent={(msg) => setMessages((m) => [...m, msg])}
+          onSent={(msg) => setMessages((m) => m.some((x) => x.id === msg.id) ? m : [...m, msg])}
         />
       )}
     </div>
