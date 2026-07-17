@@ -1,12 +1,20 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../api.js";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Copy, Trash2, ExternalLink } from "lucide-react";
+import { toast } from "sonner";
 
 interface DnsRecord {
   type: string;
   name: string;
   value: string;
 }
+
 interface Domain {
   id: string;
   hostname: string;
@@ -15,11 +23,11 @@ interface Domain {
   records: DnsRecord[];
 }
 
-const STATUS_STYLE: Record<string, { bg: string; fg: string; label: string }> = {
-  pending_dns: { bg: "#fef9c3", fg: "#854d0e", label: "Pending DNS" },
-  verifying: { bg: "#dbeafe", fg: "#1e40af", label: "Verifying" },
-  active: { bg: "#dcfce7", fg: "#166534", label: "Active" },
-  failed: { bg: "#fee2e2", fg: "#b91c1c", label: "Failed" },
+const STATUS_CONFIG: Record<string, { variant: "secondary" | "default" | "destructive"; label: string }> = {
+  pending_dns: { variant: "secondary", label: "Pending DNS" },
+  verifying: { variant: "secondary", label: "Verifying" },
+  active: { variant: "default", label: "Active" },
+  failed: { variant: "destructive", label: "Failed" },
 };
 
 export default function Domains() {
@@ -42,6 +50,7 @@ export default function Domains() {
       setHostname("");
       setErr("");
       qc.invalidateQueries({ queryKey: ["domains"] });
+      toast.success("Domain added");
     },
     onError: (e: Error) => setErr(e.message),
   });
@@ -49,138 +58,158 @@ export default function Domains() {
   const act = useMutation({
     mutationFn: ({ id, action }: { id: string; action: string }) =>
       api(`/api/domains/${id}/${action}`, { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["domains"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["domains"] });
+      toast.success("Updated");
+    },
   });
 
   const del = useMutation({
     mutationFn: (id: string) => api(`/api/domains/${id}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["domains"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["domains"] });
+      toast.success("Domain removed");
+    },
   });
 
-  return (
-    <div style={S.wrap}>
-      <h2 style={S.h2}>Custom Domains</h2>
-      <p style={S.sub}>
-        Serve your help center from your own domain (e.g. help.yourcompany.com).
-      </p>
+  const copyValue = (value: string) => {
+    navigator.clipboard.writeText(value);
+    toast.success("Copied to clipboard");
+  };
 
-      <div style={S.addRow}>
-        <input
-          style={S.input}
+  return (
+    <div className="max-w-2xl space-y-8 p-8">
+      <div>
+        <h1 className="text-2xl font-semibold">Custom Domains</h1>
+        <p className="text-muted-foreground">
+          Serve your help center from your own domain (e.g. help.yourcompany.com).
+        </p>
+      </div>
+
+      {/* Add domain form */}
+      <div className="flex gap-2">
+        <Input
           value={hostname}
           onChange={(e) => setHostname(e.target.value)}
           placeholder="help.yourcompany.com"
+          className="flex-1"
         />
-        <button
-          style={S.primary}
+        <Button
           disabled={!hostname.trim() || add.isPending}
           onClick={() => add.mutate()}
         >
           Add domain
-        </button>
+        </Button>
       </div>
-      {err && <div style={S.err}>{err}</div>}
 
-      <div style={{ marginTop: 24 }}>
+      {err && (
+        <Alert variant="destructive">
+          <AlertDescription>{err}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Domains list */}
+      <div className="space-y-4">
         {domains.length === 0 && (
-          <div style={S.muted}>No custom domains yet.</div>
+          <p className="text-muted-foreground">No custom domains yet.</p>
         )}
+
         {domains.map((d) => {
-          const st = STATUS_STYLE[d.status];
+          const st = STATUS_CONFIG[d.status];
           return (
-            <div key={d.id} style={S.card}>
-              <div style={S.cardHead}>
-                <strong>{d.hostname}</strong>
-                <span style={{ ...S.pill, background: st.bg, color: st.fg }}>
-                  {st.label}
-                </span>
-              </div>
-              {d.error && <div style={S.errNote}>{d.error}</div>}
-
-              {d.status !== "active" && (
-                <div style={S.records}>
-                  <div style={S.recordsLabel}>Add these DNS records:</div>
-                  {d.records.map((r) => (
-                    <div key={r.type} style={S.recordRow}>
-                      <span style={S.recType}>{r.type}</span>
-                      <code style={S.code}>{r.name}</code>
-                      <span style={S.arrow}>→</span>
-                      <code style={S.code}>{r.value}</code>
-                      <button
-                        style={S.copyBtn}
-                        onClick={() => navigator.clipboard?.writeText(r.value)}
-                      >
-                        Copy
-                      </button>
-                    </div>
-                  ))}
+            <Card key={d.id}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">{d.hostname}</CardTitle>
+                  <Badge variant={st.variant}>{st.label}</Badge>
                 </div>
-              )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {d.error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{d.error}</AlertDescription>
+                  </Alert>
+                )}
 
-              <div style={S.actions}>
                 {d.status !== "active" && (
-                  <button
-                    style={S.secondary}
-                    onClick={() => act.mutate({ id: d.id, action: "verify" })}
-                    disabled={act.isPending}
-                  >
-                    {d.status === "verifying" ? "Check status" : "Verify"}
-                  </button>
+                  <div className="space-y-2 rounded-lg bg-muted p-3">
+                    <p className="text-xs font-semibold text-muted-foreground">
+                      Add these DNS records:
+                    </p>
+                    <div className="space-y-2">
+                      {d.records.map((r) => (
+                        <div key={r.type} className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="w-10 font-bold text-primary">{r.type}</span>
+                          <code className="rounded border border-border bg-background px-2 py-1">
+                            {r.name}
+                          </code>
+                          <span className="text-muted-foreground">→</span>
+                          <code className="flex-1 rounded border border-border bg-background px-2 py-1">
+                            {r.value}
+                          </code>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="size-6"
+                            onClick={() => copyValue(r.value)}
+                          >
+                            <Copy className="size-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
-                {d.status !== "active" && (
-                  <button
-                    style={S.secondary}
-                    onClick={() => act.mutate({ id: d.id, action: "simulate" })}
-                    disabled={act.isPending}
-                    title="Demo mode: mark active without real DNS/cert"
+
+                <div className="flex flex-wrap gap-2">
+                  {d.status !== "active" && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => act.mutate({ id: d.id, action: "verify" })}
+                        disabled={act.isPending}
+                      >
+                        {d.status === "verifying" ? "Check status" : "Verify"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => act.mutate({ id: d.id, action: "simulate" })}
+                        disabled={act.isPending}
+                        title="Demo mode: mark active without real DNS/cert"
+                      >
+                        Simulate (demo)
+                      </Button>
+                    </>
+                  )}
+                  {d.status === "active" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      asChild
+                    >
+                      <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer">
+                        Open
+                        <ExternalLink className="ml-1 size-3" />
+                      </a>
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => del.mutate(d.id)}
+                    disabled={del.isPending}
                   >
-                    Simulate verification (demo)
-                  </button>
-                )}
-                {d.status === "active" && (
-                  <a
-                    style={S.link}
-                    href={`https://${d.hostname}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open ↗
-                  </a>
-                )}
-                <button style={S.danger} onClick={() => del.mutate(d.id)}>
-                  Remove
-                </button>
-              </div>
-            </div>
+                    <Trash2 className="size-3" />
+                    Remove
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           );
         })}
       </div>
     </div>
   );
 }
-
-const S: Record<string, React.CSSProperties> = {
-  wrap: { padding: "32px 40px", maxWidth: 720, fontFamily: "system-ui, sans-serif" },
-  h2: { margin: "0 0 4px", fontSize: 22, fontWeight: 600, color: "#111827" },
-  sub: { margin: "0 0 20px", color: "#6b7280", fontSize: 14 },
-  addRow: { display: "flex", gap: 8 },
-  input: { flex: 1, padding: "9px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 14 },
-  primary: { background: "#4f46e5", color: "#fff", border: "none", borderRadius: 8, padding: "9px 16px", fontWeight: 600, fontSize: 13, cursor: "pointer" },
-  secondary: { background: "#f3f4f6", color: "#374151", border: "1px solid #e5e7eb", borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer" },
-  danger: { background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca", borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer" },
-  link: { color: "#4f46e5", fontSize: 13, alignSelf: "center" },
-  err: { color: "#b91c1c", fontSize: 13, marginTop: 8 },
-  muted: { color: "#9ca3af", fontSize: 14 },
-  card: { border: "1px solid #e5e7eb", borderRadius: 12, padding: 16, marginBottom: 12, background: "#fff" },
-  cardHead: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  pill: { fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10 },
-  errNote: { color: "#b45309", fontSize: 12, marginBottom: 8 },
-  records: { background: "#f9fafb", borderRadius: 8, padding: 12, marginBottom: 12 },
-  recordsLabel: { fontSize: 12, color: "#6b7280", marginBottom: 8 },
-  recordRow: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" },
-  recType: { fontSize: 11, fontWeight: 700, color: "#4f46e5", width: 44 },
-  code: { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 4, padding: "2px 6px", fontSize: 12, fontFamily: "monospace" },
-  arrow: { color: "#9ca3af" },
-  copyBtn: { background: "none", border: "1px solid #e5e7eb", borderRadius: 4, padding: "2px 8px", fontSize: 11, cursor: "pointer" },
-  actions: { display: "flex", gap: 8, alignItems: "center" },
-};
